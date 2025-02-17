@@ -56,5 +56,5 @@
         "temp/": true,
         "Temp/": true
     },
-    "dotnet.defaultSolution": "LoRa-Agents.sln"
+    "dotnet.defaultSolution": "ECS-Agents.sln"
 }

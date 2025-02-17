@@ -14,7 +14,6 @@ namespace ECS.Systems
 
         // Material properties
         private Material terrainMaterial;
-        private float tiling = 50f;
 
         public TerrainGeneratorSystem(World world, WeatherSystem weatherSystem, TimeSystem timeSystem)
         {

@@ -1,0 +1,109 @@
+#pragma kernel UpdateEnvironmentalVolume
+
+// Input data
+RWTexture3D<float4> VolumeTexture;
+StructuredBuffer<float> Temperature;
+StructuredBuffer<float> Moisture;
+StructuredBuffer<float> WindSpeed;
+StructuredBuffer<int> Biomes;
+
+// Parameters
+int3 GridSize;
+int VisualizationType;
+
+// Color mapping functions
+float4 TemperatureToColor(float temp)
+{
+    // Blue (cold) to Red (hot)
+    float t = (temp + 20.0) / 60.0; // -20 to 40 range
+    return float4(
+        saturate(t * 2.0),     // Red
+        saturate(1.0 - abs(t * 2.0 - 1.0)), // Green
+        saturate(2.0 - t * 2.0),// Blue
+        saturate(t * 0.8 + 0.2) // Alpha
+    );
+}
+
+float4 MoistureToColor(float moisture)
+{
+    // White (dry) to Blue (wet)
+    return float4(
+        1.0 - moisture * 0.5,  // Red
+        1.0 - moisture * 0.5,  // Green
+        1.0,                   // Blue
+        saturate(moisture * 0.8 + 0.2) // Alpha
+    );
+}
+
+float4 WindSpeedToColor(float speed)
+{
+    // White (calm) to Green (strong)
+    float normalizedSpeed = speed / 20.0; // 0 to 20 range
+    return float4(
+        1.0 - normalizedSpeed * 0.7,  // Red
+        1.0,                          // Green
+        1.0 - normalizedSpeed * 0.7,  // Blue
+        saturate(normalizedSpeed * 0.8 + 0.2) // Alpha
+    );
+}
+
+float4 BiomeToColor(int biome)
+{
+    switch(biome)
+    {
+        case 0: return float4(0.0, 0.2, 0.8, 0.8);    // Ocean
+        case 1: return float4(0.9, 0.9, 0.6, 0.8);    // Beach
+        case 2: return float4(0.5, 0.8, 0.3, 0.8);    // Plains
+        case 3: return float4(0.2, 0.6, 0.2, 0.8);    // Forest
+        case 4: return float4(0.0, 0.4, 0.0, 0.8);    // Jungle
+        case 5: return float4(0.9, 0.8, 0.2, 0.8);    // Desert
+        case 6: return float4(0.9, 0.9, 0.9, 0.8);    // Tundra
+        case 7: return float4(0.5, 0.5, 0.5, 0.8);    // Mountain
+        case 8: return float4(1.0, 1.0, 1.0, 0.8);    // SnowPeak
+        default: return float4(0.0, 0.0, 0.0, 0.0);   // Invalid
+    }
+}
+
+// Get index in the data arrays
+int GetDataIndex(uint3 id)
+{
+    return id.x + GridSize.x * (id.y + GridSize.y * id.z);
+}
+
+[numthreads(8,8,8)]
+void UpdateEnvironmentalVolume(uint3 id : SV_DispatchThreadID)
+{
+    // Check if within bounds
+    if (any(id >= (uint3)GridSize))
+        return;
+
+    int dataIndex = GetDataIndex(id);
+    float4 color;
+
+    // Choose visualization based on type
+    switch(VisualizationType)
+    {
+        case 0: // Temperature
+            color = TemperatureToColor(Temperature[dataIndex]);
+            break;
+        case 1: // Moisture
+            color = MoistureToColor(Moisture[dataIndex]);
+            break;
+        case 2: // Wind Speed
+            color = WindSpeedToColor(WindSpeed[dataIndex]);
+            break;
+        case 3: // Biomes
+            color = BiomeToColor(Biomes[dataIndex]);
+            break;
+        default:
+            color = float4(0, 0, 0, 0);
+            break;
+    }
+
+    // Height-based alpha falloff for better visibility
+    float heightFactor = (float)id.y / GridSize.y;
+    color.a *= saturate(1.0 - pow(heightFactor, 2.0));
+
+    // Write to volume texture
+    VolumeTexture[id] = color;
+}

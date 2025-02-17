@@ -44,7 +44,7 @@ public class MaterialManager : MonoBehaviour
 
     private void SetupTerrainLayers()
     {
-        Terrain terrain = FindObjectOfType<Terrain>();
+        Terrain terrain = Object.FindFirstObjectByType<Terrain>();
         if (terrain == null)
         {
             Debug.LogWarning("No terrain found in scene!");
