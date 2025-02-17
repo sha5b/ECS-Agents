@@ -5,10 +5,10 @@ This document provides a comprehensive guide to our Entity Component System (ECS
 ## Table of Contents
 1. [Architecture Overview](#architecture-overview)
 2. [Core Components](#core-components)
-3. [Creating Components](#creating-components)
-4. [Creating Systems](#creating-systems)
-5. [World Management](#world-management)
-6. [Usage Examples](#usage-examples)
+3. [Environmental Systems](#environmental-systems)
+4. [System Interactions](#system-interactions)
+5. [Usage Examples](#usage-examples)
+6. [Best Practices](#best-practices)
 
 ## Architecture Overview
 
@@ -21,167 +21,72 @@ Our ECS implementation consists of four main parts:
 
 ### Directory Structure
 ```
-Assets/Scripts/ECS/
-├── Core/
-│   ├── Entity.cs
-│   ├── IComponent.cs
-│   ├── ISystem.cs
-│   └── World.cs
-├── Components/
-│   ├── HealthComponent.cs
-│   └── TemperatureComponent.cs
-└── Systems/
-    └── TemperatureSystem.cs
+Assets/Scripts/
+├── ECS/
+│   ├── Core/
+│   │   ├── Entity.cs
+│   │   ├── IComponent.cs
+│   │   ├── ISystem.cs
+│   │   └── World.cs
+│   ├── Components/
+│   │   ├── HealthComponent.cs
+│   │   ├── TemperatureComponent.cs
+│   │   ├── TimeComponent.cs
+│   │   └── WeatherComponent.cs
+│   └── Systems/
+│       ├── TemperatureSystem.cs
+│       ├── TimeSystem.cs
+│       └── WeatherSystem.cs
+└── Demo/
+    └── DemoManager.cs
 ```
 
-## Core Components
+## Environmental Systems
 
-### Entity (Entity.cs)
+### Time System
+The TimeSystem manages the day/night cycle and time-based behaviors:
+- Day phases: Dawn (5-7), Day (7-17), Dusk (17-19), Night (19-5)
+- Affects entity activity patterns
+- Influences weather probabilities
+- Modifies temperature based on time of day
+
 ```csharp
-public class Entity
-{
-    public int Id { get; private set; }
-    private Dictionary<Type, IComponent> components;
-
-    // Add component to entity
-    public void AddComponent(IComponent component)
-    
-    // Get component from entity
-    public T GetComponent<T>() where T : class, IComponent
-    
-    // Check if entity has component
-    public bool HasComponent<T>() where T : IComponent
-    
-    // Remove component from entity
-    public void RemoveComponent<T>() where T : IComponent
-}
-```
-
-### IComponent (IComponent.cs)
-```csharp
-public interface IComponent
-{
-    // Marker interface for components
-}
-```
-
-### ISystem (ISystem.cs)
-```csharp
-public interface ISystem
-{
-    void Update(float deltaTime);
-}
-```
-
-### World (World.cs)
-```csharp
-public class World : MonoBehaviour
-{
-    private List<Entity> entities;
-    private List<ISystem> systems;
-    
-    public Entity CreateEntity()
-    public void DestroyEntity(Entity entity)
-    public void AddSystem(ISystem system)
-    public List<Entity> GetEntities()
-}
-```
-
-## Creating Components
-
-Components should:
-1. Implement IComponent
-2. Contain only data, no logic
-3. Be immutable where possible
-
-Example Component:
-```csharp
-public class HealthComponent : IComponent
-{
-    public float MaxHealth { get; private set; }
-    public float CurrentHealth { get; private set; }
-
-    public HealthComponent(float maxHealth)
-    {
-        MaxHealth = maxHealth;
-        CurrentHealth = maxHealth;
-    }
-
-    public void TakeDamage(float amount)
-    {
-        CurrentHealth = Mathf.Max(0, CurrentHealth - amount);
-    }
-}
-```
-
-## Creating Systems
-
-Systems should:
-1. Implement ISystem
-2. Process entities with specific components
-3. Contain logic for updating components
-
-Example System:
-```csharp
-public class TemperatureSystem : ISystem
-{
-    private World world;
-    private float environmentalTemperature = 20f;
-
-    public TemperatureSystem(World world)
-    {
-        this.world = world;
-    }
-
-    public void Update(float deltaTime)
-    {
-        foreach (var entity in world.GetEntities())
-        {
-            if (!entity.HasComponent<TemperatureComponent>())
-                continue;
-
-            var tempComponent = entity.GetComponent<TemperatureComponent>();
-            var healthComponent = entity.GetComponent<HealthComponent>();
-
-            // Process entity components...
-        }
-    }
-}
-```
-
-## World Management
-
-The World class manages all entities and systems. To set up:
-
-1. Create a World instance:
-```csharp
-World world = gameObject.AddComponent<World>();
-```
-
-2. Create and add systems:
-```csharp
-var temperatureSystem = new TemperatureSystem(world);
-world.AddSystem(temperatureSystem);
-```
-
-3. Create entities and add components:
-```csharp
+// Example: Creating a time-aware entity
 var entity = world.CreateEntity();
-entity.AddComponent(new HealthComponent(100f));
-entity.AddComponent(new TemperatureComponent(20f, 10f, 1f));
+entity.AddComponent(new TimeComponent(
+    activeAtNight: true,
+    activeAtDay: false,
+    activityStartTime: 20f, // 8 PM
+    activityEndTime: 6f     // 6 AM
+));
 ```
 
-## Usage Examples
+### Weather System
+The WeatherSystem manages environmental conditions:
+- Weather states: Clear, Cloudy, Rain, Thunder, Snow, Sandstorm
+- Dynamic weather transitions
+- Time-based weather probabilities
+- Weather effects on entities
 
-### Creating an Entity with Multiple Components
 ```csharp
-// Create entity
-var entity = world.CreateEntity();
+// Example: Creating a weather-resistant entity
+entity.AddComponent(new WeatherComponent(
+    rainResistance: WeatherComponent.WeatherResistance.High,
+    thunderResistance: WeatherComponent.WeatherResistance.Medium,
+    snowResistance: WeatherComponent.WeatherResistance.Immune,
+    sandstormResistance: WeatherComponent.WeatherResistance.Low
+));
+```
 
-// Add health component
-entity.AddComponent(new HealthComponent(100f));
+### Temperature System
+The TemperatureSystem handles environmental and entity temperatures:
+- Base temperature varies by time of day
+- Weather affects temperature
+- Entities have optimal temperature ranges
+- Temperature stress causes damage
 
-// Add temperature component
+```csharp
+// Example: Creating a temperature-sensitive entity
 entity.AddComponent(new TemperatureComponent(
     optimalTemperature: 20f,
     tolerance: 10f,
@@ -189,106 +94,97 @@ entity.AddComponent(new TemperatureComponent(
 ));
 ```
 
-### Creating a New Component
+## System Interactions
+
+### Time → Weather
+- Different weather probabilities for each day phase
+- Dawn: Higher chance of clear weather
+- Day: Balanced probabilities
+- Dusk: Higher chance of rain
+- Night: Higher chance of clear skies
+
+### Weather → Temperature
+- Rain reduces temperature
+- Snow indicates cold temperatures
+- Clear weather allows normal temperature progression
+- Sandstorms increase temperature
+
+### Temperature → Health
+- Temperature outside tolerance causes stress
+- High stress causes damage
+- Damage rate based on stress level
+- Entities can have different resistances
+
+## Usage Examples
+
+### Creating a Complete Entity
 ```csharp
-public class StaminaComponent : IComponent
-{
-    public float MaxStamina { get; private set; }
-    public float CurrentStamina { get; private set; }
-    
-    public StaminaComponent(float maxStamina)
-    {
-        MaxStamina = maxStamina;
-        CurrentStamina = maxStamina;
-    }
-    
-    public void UseStamina(float amount)
-    {
-        CurrentStamina = Mathf.Max(0, CurrentStamina - amount);
-    }
-    
-    public void Recover(float amount)
-    {
-        CurrentStamina = Mathf.Min(MaxStamina, CurrentStamina + amount);
-    }
-}
+var entity = world.CreateEntity();
+
+// Add health tracking
+entity.AddComponent(new HealthComponent(100f));
+
+// Add temperature sensitivity
+entity.AddComponent(new TemperatureComponent(20f, 10f, 1f));
+
+// Add time-based behavior
+entity.AddComponent(new TimeComponent(true, true, 6f, 22f));
+
+// Add weather resistance
+entity.AddComponent(new WeatherComponent(
+    WeatherComponent.WeatherResistance.Medium,
+    WeatherComponent.WeatherResistance.High,
+    WeatherComponent.WeatherResistance.Low,
+    WeatherComponent.WeatherResistance.Immune
+));
 ```
 
-### Creating a New System
+### Setting Up the World
 ```csharp
-public class StaminaSystem : ISystem
-{
-    private World world;
-    private float recoveryRate = 10f; // Stamina recovery per second
-    
-    public StaminaSystem(World world)
-    {
-        this.world = world;
-    }
-    
-    public void Update(float deltaTime)
-    {
-        foreach (var entity in world.GetEntities())
-        {
-            if (!entity.HasComponent<StaminaComponent>())
-                continue;
-                
-            var stamina = entity.GetComponent<StaminaComponent>();
-            stamina.Recover(recoveryRate * deltaTime);
-        }
-    }
-}
-```
+// Create world
+var world = gameObject.AddComponent<World>();
 
-### System Integration Example
-```csharp
-public class GameManager : MonoBehaviour
-{
-    private World world;
-    
-    void Start()
-    {
-        // Create world
-        world = gameObject.AddComponent<World>();
-        
-        // Add systems
-        world.AddSystem(new TemperatureSystem(world));
-        world.AddSystem(new StaminaSystem(world));
-        
-        // Create player entity
-        var player = world.CreateEntity();
-        player.AddComponent(new HealthComponent(100f));
-        player.AddComponent(new StaminaComponent(100f));
-        player.AddComponent(new TemperatureComponent(20f, 10f, 1f));
-    }
-}
+// Create and add systems
+var timeSystem = new TimeSystem(world, 12f);
+var temperatureSystem = new TemperatureSystem(world);
+var weatherSystem = new WeatherSystem(world, timeSystem);
+
+world.AddSystem(timeSystem);
+world.AddSystem(temperatureSystem);
+world.AddSystem(weatherSystem);
 ```
 
 ## Best Practices
 
-1. **Component Design**
+1. **System Order**
+   - TimeSystem should update first
+   - WeatherSystem should update second
+   - TemperatureSystem should update last
+   - This ensures proper environmental state propagation
+
+2. **Component Design**
    - Keep components data-only
    - Use immutable properties where possible
    - Include methods only for data manipulation
 
-2. **System Design**
-   - Systems should focus on one specific aspect
+3. **System Design**
+   - Systems should focus on one aspect
    - Check for required components before processing
-   - Use dependency injection for external dependencies
+   - Consider dependencies between systems
 
-3. **Entity Management**
+4. **Entity Management**
    - Create entities through the World class
    - Destroy entities when no longer needed
    - Keep track of entity references where necessary
 
-4. **Performance Considerations**
+5. **Performance Considerations**
    - Cache component references when possible
    - Use HasComponent checks before GetComponent
    - Consider using object pooling for frequently created/destroyed entities
 
 ## Extending the System
 
-To add new functionality:
+To add new environmental effects:
 
 1. Create new components for new data types
 2. Create new systems to process the components

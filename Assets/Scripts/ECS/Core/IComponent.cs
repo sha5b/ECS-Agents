@@ -1,4 +1,7 @@
-public interface IComponent
+namespace ECS.Core
 {
-    // Marker interface for components
+    public interface IComponent
+    {
+        // Marker interface for components
+    }
 }

@@ -1,45 +1,56 @@
 using UnityEngine;
+using ECS.Core;
+using ECS.Components;
 
-public class TemperatureSystem : ISystem
+namespace ECS.Systems
 {
-    private World world;
-    private float environmentalTemperature = 20f;
-    private float temperatureDamageThreshold = 0.7f; // When temperature stress is above this, entity takes damage
-    private float temperatureDamage = 5f; // Damage per second when in extreme temperatures
-
-    public TemperatureSystem(World world)
+    public class TemperatureSystem : ISystem
     {
-        this.world = world;
-    }
+        private World world;
+        private float environmentalTemperature = 20f;
+        private float damageThreshold = 0.8f;
+        private float damageRate = 10f; // Damage per second when at max stress
 
-    public void SetEnvironmentalTemperature(float temperature)
-    {
-        environmentalTemperature = temperature;
-    }
-
-    public void Update(float deltaTime)
-    {
-        foreach (var entity in world.GetEntities())
+        public TemperatureSystem(World world)
         {
-            if (!entity.HasComponent<TemperatureComponent>())
-                continue;
+            this.world = world;
+        }
 
-            var tempComponent = entity.GetComponent<TemperatureComponent>();
-            var healthComponent = entity.GetComponent<HealthComponent>();
-
-            // Update entity's temperature based on environment
-            tempComponent.UpdateTemperature(environmentalTemperature, deltaTime);
-
-            // If entity has health and is in extreme temperature, apply damage
-            if (healthComponent != null)
+        public void Update(float deltaTime)
+        {
+            foreach (var entity in world.GetEntities())
             {
-                float stress = tempComponent.GetTemperatureStress();
-                if (stress > temperatureDamageThreshold)
+                if (!entity.HasComponent<TemperatureComponent>())
+                    continue;
+
+                var tempComponent = entity.GetComponent<TemperatureComponent>();
+                
+                // Update temperature based on environment
+                tempComponent.UpdateTemperature(environmentalTemperature, deltaTime);
+
+                // Apply damage if entity has health and is under temperature stress
+                if (entity.HasComponent<HealthComponent>())
                 {
-                    float damage = temperatureDamage * (stress - temperatureDamageThreshold) * deltaTime;
-                    healthComponent.TakeDamage(damage);
+                    var healthComponent = entity.GetComponent<HealthComponent>();
+                    float stress = tempComponent.GetTemperatureStress();
+                    
+                    if (stress > damageThreshold)
+                    {
+                        float damage = damageRate * (stress - damageThreshold) * deltaTime;
+                        healthComponent.TakeDamage(damage);
+                    }
                 }
             }
+        }
+
+        public void SetEnvironmentalTemperature(float temperature)
+        {
+            environmentalTemperature = temperature;
+        }
+
+        public float GetEnvironmentalTemperature()
+        {
+            return environmentalTemperature;
         }
     }
 }

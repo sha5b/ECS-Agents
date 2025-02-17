@@ -2,47 +2,50 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class Entity
+namespace ECS.Core
 {
-    public int Id { get; private set; }
-    private Dictionary<Type, IComponent> components;
-
-    public Entity(int id)
+    public class Entity
     {
-        Id = id;
-        components = new Dictionary<Type, IComponent>();
-    }
+        public int Id { get; private set; }
+        private Dictionary<Type, IComponent> components;
 
-    public void AddComponent(IComponent component)
-    {
-        var type = component.GetType();
-        if (!components.ContainsKey(type))
+        public Entity(int id)
         {
-            components[type] = component;
+            Id = id;
+            components = new Dictionary<Type, IComponent>();
         }
-    }
 
-    public T GetComponent<T>() where T : class, IComponent
-    {
-        var type = typeof(T);
-        if (components.ContainsKey(type))
+        public void AddComponent(IComponent component)
         {
-            return components[type] as T;
+            var type = component.GetType();
+            if (!components.ContainsKey(type))
+            {
+                components[type] = component;
+            }
         }
-        return null;
-    }
 
-    public bool HasComponent<T>() where T : IComponent
-    {
-        return components.ContainsKey(typeof(T));
-    }
-
-    public void RemoveComponent<T>() where T : IComponent
-    {
-        var type = typeof(T);
-        if (components.ContainsKey(type))
+        public T GetComponent<T>() where T : class, IComponent
         {
-            components.Remove(type);
+            var type = typeof(T);
+            if (components.ContainsKey(type))
+            {
+                return components[type] as T;
+            }
+            return null;
+        }
+
+        public bool HasComponent<T>() where T : IComponent
+        {
+            return components.ContainsKey(typeof(T));
+        }
+
+        public void RemoveComponent<T>() where T : IComponent
+        {
+            var type = typeof(T);
+            if (components.ContainsKey(type))
+            {
+                components.Remove(type);
+            }
         }
     }
 }

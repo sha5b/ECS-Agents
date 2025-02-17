@@ -1,46 +1,49 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class World : MonoBehaviour
+namespace ECS.Core
 {
-    private List<Entity> entities;
-    private List<ISystem> systems;
-    private int nextEntityId = 0;
-
-    private void Awake()
+    public class World : MonoBehaviour
     {
-        entities = new List<Entity>();
-        systems = new List<ISystem>();
-    }
+        private List<Entity> entities;
+        private List<ISystem> systems;
+        private int nextEntityId = 0;
 
-    private void Update()
-    {
-        float deltaTime = Time.deltaTime;
-        foreach (var system in systems)
+        private void Awake()
         {
-            system.Update(deltaTime);
+            entities = new List<Entity>();
+            systems = new List<ISystem>();
         }
-    }
 
-    public Entity CreateEntity()
-    {
-        var entity = new Entity(nextEntityId++);
-        entities.Add(entity);
-        return entity;
-    }
+        private void Update()
+        {
+            float deltaTime = Time.deltaTime;
+            foreach (var system in systems)
+            {
+                system.Update(deltaTime);
+            }
+        }
 
-    public void DestroyEntity(Entity entity)
-    {
-        entities.Remove(entity);
-    }
+        public Entity CreateEntity()
+        {
+            var entity = new Entity(nextEntityId++);
+            entities.Add(entity);
+            return entity;
+        }
 
-    public void AddSystem(ISystem system)
-    {
-        systems.Add(system);
-    }
+        public void DestroyEntity(Entity entity)
+        {
+            entities.Remove(entity);
+        }
 
-    public List<Entity> GetEntities()
-    {
-        return entities;
+        public void AddSystem(ISystem system)
+        {
+            systems.Add(system);
+        }
+
+        public List<Entity> GetEntities()
+        {
+            return entities;
+        }
     }
 }

@@ -1,4 +1,7 @@
-public interface ISystem
+namespace ECS.Core
 {
-    void Update(float deltaTime);
+    public interface ISystem
+    {
+        void Update(float deltaTime);
+    }
 }

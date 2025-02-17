@@ -1,28 +1,32 @@
 using UnityEngine;
+using ECS.Core;
 
-public class HealthComponent : IComponent
+namespace ECS.Components
 {
-    public float MaxHealth { get; private set; }
-    public float CurrentHealth { get; private set; }
-
-    public HealthComponent(float maxHealth)
+    public class HealthComponent : IComponent
     {
-        MaxHealth = maxHealth;
-        CurrentHealth = maxHealth;
-    }
+        public float MaxHealth { get; private set; }
+        public float CurrentHealth { get; private set; }
 
-    public void TakeDamage(float amount)
-    {
-        CurrentHealth = Mathf.Max(0, CurrentHealth - amount);
-    }
+        public HealthComponent(float maxHealth)
+        {
+            MaxHealth = maxHealth;
+            CurrentHealth = maxHealth;
+        }
 
-    public void Heal(float amount)
-    {
-        CurrentHealth = Mathf.Min(MaxHealth, CurrentHealth + amount);
-    }
+        public void TakeDamage(float amount)
+        {
+            CurrentHealth = Mathf.Max(0, CurrentHealth - amount);
+        }
 
-    public bool IsDead()
-    {
-        return CurrentHealth <= 0;
+        public void Heal(float amount)
+        {
+            CurrentHealth = Mathf.Min(MaxHealth, CurrentHealth + amount);
+        }
+
+        public bool IsDead()
+        {
+            return CurrentHealth <= 0;
+        }
     }
 }
