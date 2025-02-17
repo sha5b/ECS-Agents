@@ -455,6 +455,21 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fc447df1c37e97a4596d2908b3944f83, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  timeScale: 60
+  mainCamera: {fileID: 0}
+  cameraController: {fileID: 0}
+  terrainSize: 200
+  terrainHeight: 100
+  baseHeight: 50
+  heightVariation: 20
+  resolution: 512
+  grassTexture: {fileID: 0}
+  rockTexture: {fileID: 0}
+  snowTexture: {fileID: 0}
+  textureScale: 500
+  numberOfEntities: 10
+  spawnHeight: 200
+  spawnAreaSize: 200
 --- !u!4 &2071409690
 Transform:
   m_ObjectHideFlags: 0
