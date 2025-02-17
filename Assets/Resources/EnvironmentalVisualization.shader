@@ -6,6 +6,7 @@ Shader "Custom/EnvironmentalVisualization"
         _StepSize ("Ray Step Size", Range(0.01, 0.1)) = 0.05
         _Density ("Density", Range(0.1, 5.0)) = 1.0
         _AlphaThreshold ("Alpha Threshold", Range(0.0, 1.0)) = 0.02
+        [KeywordEnum(Temperature, Moisture, WindSpeed, Biomes)] _VisType ("Visualization Type", Float) = 0
     }
 
     SubShader
@@ -21,7 +22,11 @@ Shader "Custom/EnvironmentalVisualization"
             CGPROGRAM
             #pragma vertex vert
             #pragma fragment frag
+            #pragma multi_compile _VISTYPE_TEMPERATURE _VISTYPE_MOISTURE _VISTYPE_WINDSPEED _VISTYPE_BIOMES
             #include "UnityCG.cginc"
+
+            #define MAX_STEPS 128
+            #define STEP_SIZE 0.01
 
             struct appdata
             {
@@ -32,90 +37,125 @@ Shader "Custom/EnvironmentalVisualization"
             struct v2f
             {
                 float4 vertex : SV_POSITION;
-                float3 worldPos : TEXCOORD0;
+                float3 localPos : TEXCOORD0;
                 float3 viewDir : TEXCOORD1;
             };
 
             sampler3D _VolumeTexture;
-            float _StepSize;
             float _Density;
             float _AlphaThreshold;
+
+            float4 TemperatureToColor(float temp)
+            {
+                // -20 to 40 range
+                float t = (temp + 20.0) / 60.0;
+                return float4(
+                    saturate(t * 2.0),     // Red
+                    saturate(1.0 - abs(t * 2.0 - 1.0)), // Green
+                    saturate(2.0 - t * 2.0),// Blue
+                    saturate(t * 0.8 + 0.2) // Alpha
+                );
+            }
+
+            float4 MoistureToColor(float moisture)
+            {
+                return float4(
+                    1.0 - moisture * 0.5,  // Red
+                    1.0 - moisture * 0.5,  // Green
+                    1.0,                   // Blue
+                    saturate(moisture * 0.8 + 0.2) // Alpha
+                );
+            }
+
+            float4 WindSpeedToColor(float speed)
+            {
+                float normalizedSpeed = speed / 20.0;
+                return float4(
+                    1.0 - normalizedSpeed * 0.7,  // Red
+                    1.0,                          // Green
+                    1.0 - normalizedSpeed * 0.7,  // Blue
+                    saturate(normalizedSpeed * 0.8 + 0.2) // Alpha
+                );
+            }
+
+            float4 BiomeToColor(float biomeIndex)
+            {
+                int index = (int)(biomeIndex * 8.0 + 0.5);
+                switch(index)
+                {
+                    case 0: return float4(0.0, 0.2, 0.8, 0.8);    // Ocean
+                    case 1: return float4(0.9, 0.9, 0.6, 0.8);    // Beach
+                    case 2: return float4(0.5, 0.8, 0.3, 0.8);    // Plains
+                    case 3: return float4(0.2, 0.6, 0.2, 0.8);    // Forest
+                    case 4: return float4(0.0, 0.4, 0.0, 0.8);    // Jungle
+                    case 5: return float4(0.9, 0.8, 0.2, 0.8);    // Desert
+                    case 6: return float4(0.9, 0.9, 0.9, 0.8);    // Tundra
+                    case 7: return float4(0.5, 0.5, 0.5, 0.8);    // Mountain
+                    default: return float4(1.0, 1.0, 1.0, 0.8);   // Snow Peak
+                }
+            }
+
+            float4 SampleVolume(float3 pos)
+            {
+                float4 sample = tex3D(_VolumeTexture, pos);
+                
+                #if defined(_VISTYPE_TEMPERATURE)
+                    return TemperatureToColor(sample.r);
+                #elif defined(_VISTYPE_MOISTURE)
+                    return MoistureToColor(sample.g);
+                #elif defined(_VISTYPE_WINDSPEED)
+                    return WindSpeedToColor(sample.b);
+                #else // _VISTYPE_BIOMES
+                    return BiomeToColor(sample.a);
+                #endif
+            }
 
             v2f vert (appdata v)
             {
                 v2f o;
                 o.vertex = UnityObjectToClipPos(v.vertex);
-                o.worldPos = mul(unity_ObjectToWorld, v.vertex).xyz;
-                float3 worldCameraPos = _WorldSpaceCameraPos;
-                o.viewDir = normalize(o.worldPos - worldCameraPos);
+                o.localPos = v.vertex.xyz;
+                float3 worldPos = mul(unity_ObjectToWorld, v.vertex).xyz;
+                o.viewDir = normalize(worldPos - _WorldSpaceCameraPos);
                 return o;
             }
 
-            // Ray-Box Intersection
-            bool IntersectBox(float3 origin, float3 direction, float3 boxMin, float3 boxMax, 
-                            out float tMin, out float tMax)
+            float4 frag (v2f i) : SV_Target
             {
-                float3 invDir = 1.0 / direction;
-                float3 t0 = (boxMin - origin) * invDir;
-                float3 t1 = (boxMax - origin) * invDir;
-                float3 tSmaller = min(t0, t1);
-                float3 tBigger = max(t0, t1);
-                tMin = max(max(tSmaller.x, tSmaller.y), tSmaller.z);
-                tMax = min(min(tBigger.x, tBigger.y), tBigger.z);
-                return tMax > tMin && tMax > 0;
-            }
-
-            // Volume Ray Marching
-            float4 RayMarch(float3 rayOrigin, float3 rayDirection, float tMin, float tMax)
-            {
-                float3 currentPos = rayOrigin + tMin * rayDirection;
-                float stepSize = _StepSize;
-                float t = tMin;
-                float4 accumColor = float4(0, 0, 0, 0);
-
-                while (t < tMax && accumColor.a < 0.99)
+                float3 rayOrigin = i.localPos;
+                float3 rayDir = normalize(mul((float3x3)unity_WorldToObject, i.viewDir));
+                
+                // Convert to texture space (0-1)
+                rayOrigin = rayOrigin * 0.5 + 0.5;
+                
+                float4 color = float4(0, 0, 0, 0);
+                float3 pos = rayOrigin;
+                
+                // Fixed iteration ray marching
+                [unroll(MAX_STEPS)]
+                for (int step = 0; step < MAX_STEPS; step++)
                 {
-                    // Convert world position to volume texture coordinates (0-1 range)
-                    float3 texCoord = mul(unity_WorldToObject, float4(currentPos, 1)).xyz * 0.5 + 0.5;
+                    // Check if we're outside the volume
+                    if (any(pos < 0) || any(pos > 1) || color.a > 0.99)
+                        break;
+                        
+                    float4 sample = SampleVolume(pos);
+                    sample.a *= _Density * STEP_SIZE;
                     
-                    // Sample volume texture
-                    float4 sample = tex3D(_VolumeTexture, texCoord);
-                    
-                    // Apply density factor
-                    sample.a *= _Density * stepSize;
-                    
-                    // Skip samples with very low alpha
+                    // Skip low alpha samples
                     if (sample.a > _AlphaThreshold)
                     {
                         // Front-to-back compositing
-                        float oneMinusAlpha = 1 - accumColor.a;
-                        accumColor += sample * oneMinusAlpha;
+                        float oneMinusAlpha = 1 - color.a;
+                        color += sample * oneMinusAlpha;
                     }
                     
-                    currentPos += rayDirection * stepSize;
-                    t += stepSize;
+                    pos += rayDir * STEP_SIZE;
                 }
-
-                return accumColor;
-            }
-
-            fixed4 frag (v2f i) : SV_Target
-            {
-                float3 rayOrigin = mul(unity_WorldToObject, float4(i.worldPos, 1)).xyz;
-                float3 rayDirection = normalize(mul((float3x3)unity_WorldToObject, i.viewDir));
-
-                float tMin, tMax;
-                float3 boxMin = float3(-0.5, -0.5, -0.5);
-                float3 boxMax = float3(0.5, 0.5, 0.5);
-
-                if (!IntersectBox(rayOrigin, rayDirection, boxMin, boxMax, tMin, tMax))
-                    discard;
-
-                float4 color = RayMarch(rayOrigin, rayDirection, tMin, tMax);
                 
-                // Apply distance-based fog effect
-                float fogFactor = 1.0 - exp(-length(i.worldPos - _WorldSpaceCameraPos) * 0.1);
-                color.rgb = lerp(color.rgb, unity_FogColor.rgb, fogFactor * color.a);
+                // Apply distance fade
+                float viewDistance = length(i.localPos);
+                color.a *= saturate(1 - viewDistance * 0.5);
                 
                 return color;
             }

@@ -1,5 +1,6 @@
 using UnityEngine;
 using ECS.Core;
+using ECS.Systems;
 
 namespace ECS.Components
 {
@@ -68,36 +69,32 @@ namespace ECS.Components
                 4, 1, 5
             };
 
-            // Normals (pointing outward for each vertex)
-            Vector3[] normals = new Vector3[]
-            {
-                new Vector3(-1, -1, -1).normalized,
-                new Vector3(1, -1, -1).normalized,
-                new Vector3(1, 1, -1).normalized,
-                new Vector3(-1, 1, -1).normalized,
-                new Vector3(-1, -1, 1).normalized,
-                new Vector3(1, -1, 1).normalized,
-                new Vector3(1, 1, 1).normalized,
-                new Vector3(-1, 1, 1).normalized
-            };
-
             // Assign mesh data
             mesh.vertices = vertices;
             mesh.triangles = triangles;
-            mesh.normals = normals;
+            mesh.RecalculateNormals();
             mesh.RecalculateBounds();
 
             // Assign mesh to MeshFilter
             meshFilter.mesh = mesh;
 
-            // Load and assign the visualization material
+            // Create and assign the visualization material
             visualizationMaterial = new Material(Shader.Find("Custom/EnvironmentalVisualization"));
+            if (visualizationMaterial == null)
+            {
+                Debug.LogError("Failed to find EnvironmentalVisualization shader!");
+                return;
+            }
+
             meshRenderer.material = visualizationMaterial;
 
             // Set default visualization parameters
             visualizationMaterial.SetFloat("_StepSize", 0.05f);
             visualizationMaterial.SetFloat("_Density", 1.0f);
             visualizationMaterial.SetFloat("_AlphaThreshold", 0.02f);
+
+            // Enable temperature visualization by default
+            SetVisualizationType(VoxelSystem.VisualizationType.Temperature);
 
             isInitialized = true;
         }
@@ -108,12 +105,32 @@ namespace ECS.Components
             visualizationMaterial.SetTexture("_VolumeTexture", volumeTexture);
         }
 
-        public void SetVisualizationParameters(float stepSize, float density, float alphaThreshold)
+        public void SetVisualizationType(VoxelSystem.VisualizationType type)
         {
             if (!isInitialized || visualizationMaterial == null) return;
-            visualizationMaterial.SetFloat("_StepSize", stepSize);
-            visualizationMaterial.SetFloat("_Density", density);
-            visualizationMaterial.SetFloat("_AlphaThreshold", alphaThreshold);
+
+            // Disable all keywords first
+            visualizationMaterial.DisableKeyword("_VISTYPE_TEMPERATURE");
+            visualizationMaterial.DisableKeyword("_VISTYPE_MOISTURE");
+            visualizationMaterial.DisableKeyword("_VISTYPE_WINDSPEED");
+            visualizationMaterial.DisableKeyword("_VISTYPE_BIOMES");
+
+            // Enable the appropriate keyword
+            switch (type)
+            {
+                case VoxelSystem.VisualizationType.Temperature:
+                    visualizationMaterial.EnableKeyword("_VISTYPE_TEMPERATURE");
+                    break;
+                case VoxelSystem.VisualizationType.Moisture:
+                    visualizationMaterial.EnableKeyword("_VISTYPE_MOISTURE");
+                    break;
+                case VoxelSystem.VisualizationType.WindSpeed:
+                    visualizationMaterial.EnableKeyword("_VISTYPE_WINDSPEED");
+                    break;
+                case VoxelSystem.VisualizationType.Biomes:
+                    visualizationMaterial.EnableKeyword("_VISTYPE_BIOMES");
+                    break;
+            }
         }
 
         private void OnDestroy()

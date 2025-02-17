@@ -13,6 +13,7 @@ namespace ECS
         private WeatherSystem weatherSystem;
         private TerrainGeneratorSystem terrainSystem;
         private VoxelSystem voxelSystem;
+        private VisualizationSystem visualizationSystem;
 
         [Header("Environment Settings")]
         [SerializeField] private Vector3Int environmentGridSize = new Vector3Int(32, 16, 32);
@@ -84,11 +85,15 @@ namespace ECS
                 terrainSystem = new TerrainGeneratorSystem(world, weatherSystem, timeSystem);
                 voxelSystem = new VoxelSystem(world, weatherSystem, timeSystem, terrainSystem);
 
+                // Create visualization system
+                visualizationSystem = new VisualizationSystem(world, weatherSystem, timeSystem, voxelSystem);
+
                 // Add systems in correct order
                 world.AddSystem(timeSystem);
                 world.AddSystem(weatherSystem);
                 world.AddSystem(terrainSystem);
                 world.AddSystem(voxelSystem);
+                world.AddSystem(visualizationSystem);
 
                 // Set up terrain entity
                 SetupTerrain();
@@ -185,10 +190,16 @@ namespace ECS
                 world = null;
             }
 
+            if (visualizationSystem != null)
+            {
+                visualizationSystem.Cleanup();
+            }
+            
             timeSystem = null;
             weatherSystem = null;
             terrainSystem = null;
             voxelSystem = null;
+            visualizationSystem = null;
             terrainEntity = null;
             environmentEntity = null;
         }
