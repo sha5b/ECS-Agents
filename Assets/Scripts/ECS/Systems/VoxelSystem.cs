@@ -12,8 +12,6 @@ namespace ECS.Systems
         private TerrainGeneratorSystem terrainSystem;
 
         // Visualization settings
-        private ComputeShader environmentalShader;
-        private RenderTexture volumeTexture;
         private bool showVisualization = true;
         private VisualizationType currentVisualization = VisualizationType.Temperature;
         private GameObject visualizerPrefab;
@@ -38,23 +36,13 @@ namespace ECS.Systems
 
         private void InitializeVisualization()
         {
-            // Create volume texture for 3D visualization
-            volumeTexture = new RenderTexture(64, 64, 0, RenderTextureFormat.ARGBFloat);
-            volumeTexture.dimension = UnityEngine.Rendering.TextureDimension.Tex3D;
-            volumeTexture.volumeDepth = 64;
-            volumeTexture.enableRandomWrite = true;
-            volumeTexture.Create();
-
-            // Load compute shader for updating volume texture
-            environmentalShader = Resources.Load<ComputeShader>("EnvironmentalCompute");
-
             // Create visualizer prefab
             visualizerPrefab = new GameObject("EnvironmentVisualizer");
-            visualizerPrefab.AddComponent<MeshFilter>();
-            visualizerPrefab.AddComponent<MeshRenderer>();
             var visualizer = visualizerPrefab.AddComponent<EnvironmentVisualizerComponent>();
             Object.DontDestroyOnLoad(visualizerPrefab);
             visualizerPrefab.SetActive(false);
+
+            Debug.Log("Visualization initialized successfully");
         }
 
         public void Update(float deltaTime)
@@ -67,9 +55,10 @@ namespace ECS.Systems
                 var voxelComponent = entity.GetComponent<VoxelComponent>();
                 UpdateEnvironmentalData(voxelComponent, deltaTime);
                 
-                if (showVisualization)
+                if (showVisualization && entity.HasComponent<EnvironmentVisualizerComponent>())
                 {
-                    UpdateVisualization(voxelComponent);
+                    var visualizer = entity.GetComponent<EnvironmentVisualizerComponent>();
+                    visualizer.UpdateVisualization(voxelComponent);
                 }
             }
         }
@@ -79,6 +68,10 @@ namespace ECS.Systems
             var weatherState = weatherSystem.GetCurrentWeather();
             var weatherIntensity = weatherSystem.GetWeatherIntensity();
             var currentHour = timeSystem.GetCurrentHour();
+
+            // Debug log to verify data updates
+            bool debugLog = Time.frameCount % 60 == 0; // Log every 60 frames
+            if (debugLog) Debug.Log($"Updating environmental data - Weather: {weatherState}, Intensity: {weatherIntensity}, Hour: {currentHour}");
 
             // Update each voxel's environmental data
             for (int z = 0; z < voxels.GridSize.z; z++)
@@ -132,6 +125,12 @@ namespace ECS.Systems
 
                         // Store updated data
                         voxels.SetVoxelData(pos, temperature, moisture, windSpeed, biome);
+
+                        // Debug log center voxel data
+                        if (debugLog && x == voxels.GridSize.x/2 && y == voxels.GridSize.y/2 && z == voxels.GridSize.z/2)
+                        {
+                            Debug.Log($"Center voxel data - Temp: {temperature:F1}, Moisture: {moisture:F2}, Wind: {windSpeed:F1}, Biome: {biome}");
+                        }
                     }
                 }
             }
@@ -149,60 +148,36 @@ namespace ECS.Systems
             return moisture > 0.6f ? BiomeType.Forest : BiomeType.Plains;
         }
 
-        private void UpdateVisualization(VoxelComponent voxels)
+        public void SetVisualizationType(VisualizationType type)
         {
-            if (environmentalShader == null) return;
-
-            // Update volume texture
-            int kernel = environmentalShader.FindKernel("UpdateEnvironmentalVolume");
-            environmentalShader.SetTexture(kernel, "VolumeTexture", volumeTexture);
-            environmentalShader.SetInts("GridSize", voxels.GridSize.x, voxels.GridSize.y, voxels.GridSize.z);
-            environmentalShader.SetInt("VisualizationType", (int)currentVisualization);
-
-            // Set data arrays
-            ComputeBuffer temperatureBuffer = new ComputeBuffer(voxels.Temperature.Length, sizeof(float));
-            ComputeBuffer moistureBuffer = new ComputeBuffer(voxels.Moisture.Length, sizeof(float));
-            ComputeBuffer windSpeedBuffer = new ComputeBuffer(voxels.WindSpeed.Length, sizeof(float));
-            ComputeBuffer biomesBuffer = new ComputeBuffer(voxels.Biomes.Length, sizeof(int));
-
-            temperatureBuffer.SetData(voxels.Temperature);
-            moistureBuffer.SetData(voxels.Moisture);
-            windSpeedBuffer.SetData(voxels.WindSpeed);
-            biomesBuffer.SetData(voxels.Biomes);
-
-            environmentalShader.SetBuffer(kernel, "Temperature", temperatureBuffer);
-            environmentalShader.SetBuffer(kernel, "Moisture", moistureBuffer);
-            environmentalShader.SetBuffer(kernel, "WindSpeed", windSpeedBuffer);
-            environmentalShader.SetBuffer(kernel, "Biomes", biomesBuffer);
-
-            // Dispatch compute shader
-            environmentalShader.Dispatch(kernel, voxels.GridSize.x / 8, voxels.GridSize.y / 8, voxels.GridSize.z / 8);
-
-            // Clean up
-            temperatureBuffer.Release();
-            moistureBuffer.Release();
-            windSpeedBuffer.Release();
-            biomesBuffer.Release();
-
-            // Clean up any existing visualizers
+            currentVisualization = type;
+            Debug.Log($"Switching visualization to: {type}");
+            
+            // Update visualizer components with new type
             foreach (var entity in world.GetEntities())
             {
                 if (entity.HasComponent<EnvironmentVisualizerComponent>())
                 {
                     var visualizer = entity.GetComponent<EnvironmentVisualizerComponent>();
-                    visualizer.UpdateVisualization(volumeTexture);
+                    visualizer.SetVisualizationType(type);
                 }
             }
-        }
-
-        public void SetVisualizationType(VisualizationType type)
-        {
-            currentVisualization = type;
         }
 
         public void ToggleVisualization()
         {
             showVisualization = !showVisualization;
+            Debug.Log($"Visualization {(showVisualization ? "enabled" : "disabled")}");
+
+            // Update visualizer objects
+            foreach (var entity in world.GetEntities())
+            {
+                if (entity.HasComponent<EnvironmentVisualizerComponent>())
+                {
+                    var visualizer = entity.GetComponent<EnvironmentVisualizerComponent>();
+                    visualizer.gameObject.SetActive(showVisualization);
+                }
+            }
         }
 
         public Entity CreateVoxelGrid(Vector3 origin, Vector3Int gridSize, float voxelSize)
@@ -218,14 +193,21 @@ namespace ECS.Systems
             visualizerObj.SetActive(true);
             var visualizer = visualizerObj.GetComponent<EnvironmentVisualizerComponent>();
             visualizer.Initialize(new Vector3(gridSize.x * voxelSize, gridSize.y * voxelSize, gridSize.z * voxelSize));
-            visualizer.UpdateVisualization(volumeTexture);
             
-            // Position the visualizer
-            visualizerObj.transform.position = origin;
+            // Position the visualizer at the center of the grid
+            Vector3 center = origin + new Vector3(
+                gridSize.x * voxelSize * 0.5f,
+                0, // Place at ground level
+                gridSize.z * voxelSize * 0.5f
+            );
+            visualizerObj.transform.position = center;
             
             // Add visualizer component to entity
             entity.AddComponent(visualizer);
+            visualizer.SetVisualizationType(currentVisualization);
 
+            Debug.Log($"Created voxel grid at {origin} with size {gridSize} and voxel size {voxelSize}");
+            Debug.Log($"Visualizer positioned at {center}");
             return entity;
         }
     }

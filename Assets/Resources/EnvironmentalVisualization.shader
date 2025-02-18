@@ -2,162 +2,218 @@ Shader "Custom/EnvironmentalVisualization"
 {
     Properties
     {
-        _VolumeTexture ("Volume Texture", 3D) = "white" {}
-        _StepSize ("Ray Step Size", Range(0.01, 0.1)) = 0.05
-        _Density ("Density", Range(0.1, 5.0)) = 1.0
-        _AlphaThreshold ("Alpha Threshold", Range(0.0, 1.0)) = 0.02
-        [KeywordEnum(Temperature, Moisture, WindSpeed, Biomes)] _VisType ("Visualization Type", Float) = 0
+        _MainTex ("Texture", 2D) = "white" {}
+        _ArrowTex ("Arrow Texture", 2D) = "white" {}
+        _ArrowScale ("Arrow Scale", Range(0.1, 1.0)) = 0.2
+        _ArrowSpacing ("Arrow Spacing", Range(0.1, 1.0)) = 0.2
+        _ArrowSpeed ("Arrow Animation Speed", Range(0, 10)) = 1
     }
 
     SubShader
     {
-        Tags { "Queue" = "Transparent" "RenderType" = "Transparent" }
+        Tags { "RenderType"="Transparent" "Queue"="Transparent" }
         LOD 100
-        Blend SrcAlpha OneMinusSrcAlpha
-        Cull Back
-        ZWrite Off
-
+        
+        // Temperature variant
         Pass
         {
+            Name "Temperature"
+            
+            Blend SrcAlpha OneMinusSrcAlpha
+            ZWrite Off
+
             CGPROGRAM
             #pragma vertex vert
             #pragma fragment frag
-            #pragma multi_compile _VISTYPE_TEMPERATURE _VISTYPE_MOISTURE _VISTYPE_WINDSPEED _VISTYPE_BIOMES
             #include "UnityCG.cginc"
-
-            #define MAX_STEPS 128
-            #define STEP_SIZE 0.01
 
             struct appdata
             {
                 float4 vertex : POSITION;
-                float3 normal : NORMAL;
+                float2 uv : TEXCOORD0;
             };
 
             struct v2f
             {
+                float2 uv : TEXCOORD0;
                 float4 vertex : SV_POSITION;
-                float3 localPos : TEXCOORD0;
-                float3 viewDir : TEXCOORD1;
             };
 
-            sampler3D _VolumeTexture;
-            float _Density;
-            float _AlphaThreshold;
-
-            float4 TemperatureToColor(float temp)
-            {
-                // -20 to 40 range
-                float t = (temp + 20.0) / 60.0;
-                return float4(
-                    saturate(t * 2.0),     // Red
-                    saturate(1.0 - abs(t * 2.0 - 1.0)), // Green
-                    saturate(2.0 - t * 2.0),// Blue
-                    saturate(t * 0.8 + 0.2) // Alpha
-                );
-            }
-
-            float4 MoistureToColor(float moisture)
-            {
-                return float4(
-                    1.0 - moisture * 0.5,  // Red
-                    1.0 - moisture * 0.5,  // Green
-                    1.0,                   // Blue
-                    saturate(moisture * 0.8 + 0.2) // Alpha
-                );
-            }
-
-            float4 WindSpeedToColor(float speed)
-            {
-                float normalizedSpeed = speed / 20.0;
-                return float4(
-                    1.0 - normalizedSpeed * 0.7,  // Red
-                    1.0,                          // Green
-                    1.0 - normalizedSpeed * 0.7,  // Blue
-                    saturate(normalizedSpeed * 0.8 + 0.2) // Alpha
-                );
-            }
-
-            float4 BiomeToColor(float biomeIndex)
-            {
-                int index = (int)(biomeIndex * 8.0 + 0.5);
-                switch(index)
-                {
-                    case 0: return float4(0.0, 0.2, 0.8, 0.8);    // Ocean
-                    case 1: return float4(0.9, 0.9, 0.6, 0.8);    // Beach
-                    case 2: return float4(0.5, 0.8, 0.3, 0.8);    // Plains
-                    case 3: return float4(0.2, 0.6, 0.2, 0.8);    // Forest
-                    case 4: return float4(0.0, 0.4, 0.0, 0.8);    // Jungle
-                    case 5: return float4(0.9, 0.8, 0.2, 0.8);    // Desert
-                    case 6: return float4(0.9, 0.9, 0.9, 0.8);    // Tundra
-                    case 7: return float4(0.5, 0.5, 0.5, 0.8);    // Mountain
-                    default: return float4(1.0, 1.0, 1.0, 0.8);   // Snow Peak
-                }
-            }
-
-            float4 SampleVolume(float3 pos)
-            {
-                float4 sample = tex3D(_VolumeTexture, pos);
-                
-                #if defined(_VISTYPE_TEMPERATURE)
-                    return TemperatureToColor(sample.r);
-                #elif defined(_VISTYPE_MOISTURE)
-                    return MoistureToColor(sample.g);
-                #elif defined(_VISTYPE_WINDSPEED)
-                    return WindSpeedToColor(sample.b);
-                #else // _VISTYPE_BIOMES
-                    return BiomeToColor(sample.a);
-                #endif
-            }
+            sampler2D _MainTex;
+            float4 _MainTex_ST;
 
             v2f vert (appdata v)
             {
                 v2f o;
                 o.vertex = UnityObjectToClipPos(v.vertex);
-                o.localPos = v.vertex.xyz;
-                float3 worldPos = mul(unity_ObjectToWorld, v.vertex).xyz;
-                o.viewDir = normalize(worldPos - _WorldSpaceCameraPos);
+                o.uv = TRANSFORM_TEX(v.uv, _MainTex);
                 return o;
             }
 
-            float4 frag (v2f i) : SV_Target
+            fixed4 frag (v2f i) : SV_Target
             {
-                float3 rayOrigin = i.localPos;
-                float3 rayDir = normalize(mul((float3x3)unity_WorldToObject, i.viewDir));
+                return tex2D(_MainTex, i.uv);
+            }
+            ENDCG
+        }
+
+        // Moisture variant
+        Pass
+        {
+            Name "Moisture"
+            
+            Blend SrcAlpha OneMinusSrcAlpha
+            ZWrite Off
+
+            CGPROGRAM
+            #pragma vertex vert
+            #pragma fragment frag
+            #include "UnityCG.cginc"
+
+            struct appdata
+            {
+                float4 vertex : POSITION;
+                float2 uv : TEXCOORD0;
+            };
+
+            struct v2f
+            {
+                float2 uv : TEXCOORD0;
+                float4 vertex : SV_POSITION;
+            };
+
+            sampler2D _MainTex;
+            float4 _MainTex_ST;
+
+            v2f vert (appdata v)
+            {
+                v2f o;
+                o.vertex = UnityObjectToClipPos(v.vertex);
+                o.uv = TRANSFORM_TEX(v.uv, _MainTex);
+                return o;
+            }
+
+            fixed4 frag (v2f i) : SV_Target
+            {
+                return tex2D(_MainTex, i.uv);
+            }
+            ENDCG
+        }
+
+        // Wind variant
+        Pass
+        {
+            Name "Wind"
+            
+            Blend SrcAlpha OneMinusSrcAlpha
+            ZWrite Off
+
+            CGPROGRAM
+            #pragma vertex vert
+            #pragma fragment frag
+            #include "UnityCG.cginc"
+
+            struct appdata
+            {
+                float4 vertex : POSITION;
+                float2 uv : TEXCOORD0;
+            };
+
+            struct v2f
+            {
+                float2 uv : TEXCOORD0;
+                float4 vertex : SV_POSITION;
+            };
+
+            sampler2D _MainTex;
+            sampler2D _ArrowTex;
+            float4 _MainTex_ST;
+            float _ArrowScale;
+            float _ArrowSpacing;
+            float _ArrowSpeed;
+
+            v2f vert (appdata v)
+            {
+                v2f o;
+                o.vertex = UnityObjectToClipPos(v.vertex);
+                o.uv = TRANSFORM_TEX(v.uv, _MainTex);
+                return o;
+            }
+
+            float4 DrawArrow(float2 uv, float2 direction, float speed)
+            {
+                float2 gridPos = floor(uv / _ArrowSpacing);
+                float2 gridUV = frac(uv / _ArrowSpacing);
                 
-                // Convert to texture space (0-1)
-                rayOrigin = rayOrigin * 0.5 + 0.5;
+                float2 offset = direction * _Time.y * _ArrowSpeed * speed;
+                gridUV = frac(gridUV - offset);
                 
-                float4 color = float4(0, 0, 0, 0);
-                float3 pos = rayOrigin;
+                float2 arrowUV = (gridUV - 0.5) / _ArrowScale + 0.5;
                 
-                // Fixed iteration ray marching
-                [unroll(MAX_STEPS)]
-                for (int step = 0; step < MAX_STEPS; step++)
+                if (all(arrowUV >= 0 && arrowUV <= 1))
                 {
-                    // Check if we're outside the volume
-                    if (any(pos < 0) || any(pos > 1) || color.a > 0.99)
-                        break;
-                        
-                    float4 sample = SampleVolume(pos);
-                    sample.a *= _Density * STEP_SIZE;
+                    float angle = atan2(direction.y, direction.x);
+                    float2 rotatedUV;
+                    sincos(angle, rotatedUV.y, rotatedUV.x);
+                    float2x2 rotationMatrix = float2x2(rotatedUV.x, -rotatedUV.y, rotatedUV.y, rotatedUV.x);
+                    arrowUV = mul(rotationMatrix, arrowUV - 0.5) + 0.5;
                     
-                    // Skip low alpha samples
-                    if (sample.a > _AlphaThreshold)
-                    {
-                        // Front-to-back compositing
-                        float oneMinusAlpha = 1 - color.a;
-                        color += sample * oneMinusAlpha;
-                    }
-                    
-                    pos += rayDir * STEP_SIZE;
+                    return tex2D(_ArrowTex, arrowUV);
                 }
                 
-                // Apply distance fade
-                float viewDistance = length(i.localPos);
-                color.a *= saturate(1 - viewDistance * 0.5);
-                
-                return color;
+                return float4(0, 0, 0, 0);
+            }
+
+            fixed4 frag (v2f i) : SV_Target
+            {
+                fixed4 col = tex2D(_MainTex, i.uv);
+                float2 windDir = normalize(float2(1, 1));
+                float windSpeed = col.r;
+                float4 arrow = DrawArrow(i.uv, windDir, windSpeed);
+                return lerp(col, arrow, arrow.a);
+            }
+            ENDCG
+        }
+
+        // Biome variant
+        Pass
+        {
+            Name "Biome"
+            
+            Blend SrcAlpha OneMinusSrcAlpha
+            ZWrite Off
+
+            CGPROGRAM
+            #pragma vertex vert
+            #pragma fragment frag
+            #include "UnityCG.cginc"
+
+            struct appdata
+            {
+                float4 vertex : POSITION;
+                float2 uv : TEXCOORD0;
+            };
+
+            struct v2f
+            {
+                float2 uv : TEXCOORD0;
+                float4 vertex : SV_POSITION;
+            };
+
+            sampler2D _MainTex;
+            float4 _MainTex_ST;
+
+            v2f vert (appdata v)
+            {
+                v2f o;
+                o.vertex = UnityObjectToClipPos(v.vertex);
+                o.uv = TRANSFORM_TEX(v.uv, _MainTex);
+                return o;
+            }
+
+            fixed4 frag (v2f i) : SV_Target
+            {
+                return tex2D(_MainTex, i.uv);
             }
             ENDCG
         }

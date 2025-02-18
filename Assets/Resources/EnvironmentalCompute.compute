@@ -9,6 +9,7 @@ StructuredBuffer<int> Biomes;
 
 // Parameters
 int3 GridSize;
+int VisualizationType; // 0=Temperature, 1=Moisture, 2=WindSpeed, 3=Biomes
 
 // Helper function to get 1D index from 3D position
 int GetIndex(uint3 pos)
@@ -34,6 +35,55 @@ float NormalizeBiome(int biome)
     return (float)biome / 8.0;
 }
 
+// Color mapping functions
+float4 TemperatureToColor(float temp)
+{
+    float t = NormalizeTemperature(temp);
+    return float4(
+        saturate(t * 2.0),     // Red
+        saturate(1.0 - abs(t * 2.0 - 1.0)), // Green
+        saturate(2.0 - t * 2.0),// Blue
+        saturate(t * 0.5 + 0.5) // Alpha increases with temperature
+    );
+}
+
+float4 MoistureToColor(float moisture)
+{
+    return float4(
+        1.0 - moisture * 0.5,  // Red
+        1.0 - moisture * 0.3,  // Green
+        1.0,                   // Blue
+        saturate(moisture * 0.7 + 0.3) // Alpha increases with moisture
+    );
+}
+
+float4 WindSpeedToColor(float speed)
+{
+    float normalizedSpeed = NormalizeWindSpeed(speed);
+    return float4(
+        1.0 - normalizedSpeed * 0.5,  // Red
+        1.0,                          // Green
+        1.0 - normalizedSpeed * 0.5,  // Blue
+        saturate(normalizedSpeed * 0.7 + 0.3) // Alpha increases with wind speed
+    );
+}
+
+float4 BiomeToColor(int biome)
+{
+    switch(biome)
+    {
+        case 0: return float4(0.0, 0.2, 0.8, 0.8);    // Ocean
+        case 1: return float4(0.9, 0.9, 0.6, 0.8);    // Beach
+        case 2: return float4(0.5, 0.8, 0.3, 0.8);    // Plains
+        case 3: return float4(0.2, 0.6, 0.2, 0.8);    // Forest
+        case 4: return float4(0.0, 0.4, 0.0, 0.8);    // Jungle
+        case 5: return float4(0.9, 0.8, 0.2, 0.8);    // Desert
+        case 6: return float4(0.9, 0.9, 0.9, 0.8);    // Tundra
+        case 7: return float4(0.5, 0.5, 0.5, 0.8);    // Mountain
+        default: return float4(1.0, 1.0, 1.0, 0.8);   // Snow Peak
+    }
+}
+
 [numthreads(8,8,8)]
 void UpdateEnvironmentalVolume(uint3 id : SV_DispatchThreadID)
 {
@@ -42,14 +92,35 @@ void UpdateEnvironmentalVolume(uint3 id : SV_DispatchThreadID)
         return;
 
     int index = GetIndex(id);
+    float4 color;
 
-    // Pack environmental data into RGBA channels
-    float4 data;
-    data.r = NormalizeTemperature(Temperature[index]);  // Temperature in R channel
-    data.g = Moisture[index];                          // Moisture in G channel (already 0-1)
-    data.b = NormalizeWindSpeed(WindSpeed[index]);     // Wind Speed in B channel
-    data.a = NormalizeBiome(Biomes[index]);           // Biome in A channel
+    // Apply height-based alpha falloff
+    float heightFactor = (float)id.y / GridSize.y;
+    float alpha = saturate(1.0 - pow(heightFactor, 2.0));
+
+    // Choose visualization based on type
+    switch(VisualizationType)
+    {
+        case 0: // Temperature
+            color = TemperatureToColor(Temperature[index]);
+            break;
+        case 1: // Moisture
+            color = MoistureToColor(Moisture[index]);
+            break;
+        case 2: // Wind Speed
+            color = WindSpeedToColor(WindSpeed[index]);
+            break;
+        case 3: // Biomes
+            color = BiomeToColor(Biomes[index]);
+            break;
+        default:
+            color = float4(1, 0, 1, 1); // Magenta for error
+            break;
+    }
+
+    // Apply height-based alpha and increase overall visibility
+    color.a *= alpha * 1.5;
 
     // Write to volume texture
-    VolumeTexture[id] = data;
+    VolumeTexture[id] = color;
 }
