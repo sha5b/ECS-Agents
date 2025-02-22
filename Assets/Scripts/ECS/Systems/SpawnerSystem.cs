@@ -10,7 +10,7 @@ namespace ECS.Systems
         private World world;
         private List<Entity> entities;
         private bool initialSpawnDone = false;
-        private const int INITIAL_NPC_COUNT = 10;
+        private const int INITIAL_NPC_COUNT = 3;
         private const float SPAWN_AREA_SIZE = 50f;
 
         public SpawnerSystem(World world)
@@ -92,7 +92,7 @@ namespace ECS.Systems
         private void SpawnResources()
         {
             // Spawn food sources
-            for (int i = 0; i < 5; i++)
+            for (int i = 0; i < 2; i++)
             {
                 Vector3 position = new Vector3(
                     Random.Range(-SPAWN_AREA_SIZE, SPAWN_AREA_SIZE),
@@ -110,8 +110,8 @@ namespace ECS.Systems
                 Debug.Log($"Spawned Food Source at {position}");
             }
 
-            // Spawn water sources
-            for (int i = 0; i < 3; i++)
+            // Spawn water source
+            for (int i = 0; i < 1; i++)
             {
                 Vector3 position = new Vector3(
                     Random.Range(-SPAWN_AREA_SIZE, SPAWN_AREA_SIZE),
@@ -127,7 +127,7 @@ namespace ECS.Systems
             }
 
             // Spawn rest spots
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < 2; i++)
             {
                 Vector3 position = new Vector3(
                     Random.Range(-SPAWN_AREA_SIZE, SPAWN_AREA_SIZE),

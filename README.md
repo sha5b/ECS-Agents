@@ -30,61 +30,113 @@ Assets/Scripts/
 │   │   └── World.cs
 │   ├── Components/
 │   │   ├── BehaviorComponent.cs
+│   │   ├── MemoryComponent.cs
 │   │   ├── NeedComponent.cs
+│   │   ├── PhysicalComponent.cs
 │   │   ├── Position3DComponent.cs
-│   │   └── ResourceComponent.cs
+│   │   ├── ResourceComponent.cs
+│   │   ├── SocialComponent.cs
+│   │   └── TaskComponent.cs
 │   └── Systems/
 │       ├── BehaviorSystem.cs
+│       ├── EventSystem.cs
 │       ├── MovementSystem.cs
+│       ├── NavigationSystem.cs
 │       ├── NeedSystem.cs
 │       ├── ResourceSystem.cs
+│       ├── SocialSystem.cs
 │       ├── SpawnerSystem.cs
-│       └── TerrainGeneratorSystem.cs
+│       ├── TaskSystem.cs
+│       ├── TerrainGeneratorSystem.cs
+│       └── TimeSystem.cs
 ```
 
 ## Core Systems
 
-### TerrainGeneratorSystem
-Creates a flat plane for NPCs to move on:
-- Generates basic terrain
+### World Systems
+
+#### TerrainGeneratorSystem
+Creates and manages the world terrain:
+- Generates flat plane for NPCs
 - Handles collision detection
 - Provides movement surface
 
-### SpawnerSystem
-Manages entity creation:
-- Spawns NPCs with randomized traits
-- Creates resources in the world
-- Maintains entity population
+#### TimeSystem
+Manages the day/night cycle:
+- Tracks game time and days
+- Handles day period changes (Dawn, Day, Dusk, Night)
+- Influences NPC behavior based on time
+- Triggers daily resets
 
-### NeedSystem
+#### EventSystem
+Handles world events:
+- Resource discoveries
+- Social gatherings
+- Area accessibility changes
+- Task opportunities
+
+### NPC Systems
+
+#### NeedSystem
 Manages NPC needs:
 - Hunger
 - Thirst
 - Energy
 - Social interaction
 - Tracks need satisfaction levels
-- Triggers behavior changes based on needs
+- Triggers behavior changes
 
-### BehaviorSystem
+#### BehaviorSystem
 Handles NPC decision making:
 - State management
 - Need-based decisions
 - Personality-driven actions
 - Memory of important locations
 
-### MovementSystem
+#### SocialSystem
+Manages NPC interactions:
+- Social compatibility
+- Relationship building
+- Group formations
+- Social satisfaction
+
+#### TaskSystem
+Handles NPC activities:
+- Task assignment
+- Progress tracking
+- Priority management
+- Task completion
+
+### Resource Systems
+
+#### ResourceSystem
+Manages world resources:
+- Food sources
+- Water sources
+- Rest spots
+- Resource depletion and replenishment
+
+#### SpawnerSystem
+Manages entity creation:
+- Spawns NPCs with randomized traits
+- Creates resources in the world
+- Maintains entity population
+
+### Movement Systems
+
+#### MovementSystem
 Controls entity movement:
 - Position updates
 - Rotation handling
 - Target following
 - Collision avoidance
 
-### ResourceSystem
-Manages world resources:
-- Food sources
-- Water sources
-- Rest spots
-- Resource depletion and replenishment
+#### NavigationSystem
+Handles pathfinding:
+- Path calculation
+- Obstacle avoidance
+- Target accessibility
+- Path optimization
 
 ## Components
 
@@ -240,19 +292,29 @@ resource.AddComponent(ResourceComponent.CreateFoodSource(
 // Create world
 var world = gameObject.AddComponent<World>();
 
-// Create systems
-var terrainSystem = new TerrainGeneratorSystem(world);
-var needSystem = new NeedSystem(world);
-var resourceSystem = new ResourceSystem(world, needSystem);
-var behaviorSystem = new BehaviorSystem(world, needSystem);
-var movementSystem = new MovementSystem(world);
-var spawnerSystem = new SpawnerSystem(world);
+// Create systems in dependency order
+var timeSystem = new TimeSystem(world);                    // Manages day/night cycle
+var eventSystem = new EventSystem(world);                  // Handles world events
+var terrainSystem = new TerrainGeneratorSystem(world);    // Creates the world
+var navigationSystem = new NavigationSystem(world);        // Handles pathfinding
+var needSystem = new NeedSystem(world);                   // Manages NPC needs
+var socialSystem = new SocialSystem(world);               // Handles NPC interactions
+var resourceSystem = new ResourceSystem(world, needSystem); // Manages resources
+var behaviorSystem = new BehaviorSystem(world, needSystem); // Makes decisions
+var taskSystem = new TaskSystem(world);                   // Manages NPC tasks
+var movementSystem = new MovementSystem(world);           // Handles movement
+var spawnerSystem = new SpawnerSystem(world);            // Creates entities
 
 // Add systems in update order
-world.AddSystem(terrainSystem);    // First: Create and manage terrain
-world.AddSystem(needSystem);       // Second: Update NPC needs
-world.AddSystem(behaviorSystem);   // Third: Make decisions based on needs
-world.AddSystem(movementSystem);   // Fourth: Move entities based on decisions
-world.AddSystem(resourceSystem);   // Fifth: Handle resource interactions
-world.AddSystem(spawnerSystem);    // Last: Spawn new entities if needed
+world.AddSystem(timeSystem);       // First: Update time of day
+world.AddSystem(eventSystem);      // Second: Process world events
+world.AddSystem(terrainSystem);    // Third: Update terrain
+world.AddSystem(needSystem);       // Fourth: Update NPC needs
+world.AddSystem(socialSystem);     // Fifth: Process social interactions
+world.AddSystem(behaviorSystem);   // Sixth: Make decisions
+world.AddSystem(taskSystem);       // Seventh: Update tasks
+world.AddSystem(navigationSystem); // Eighth: Plan paths
+world.AddSystem(movementSystem);   // Ninth: Move entities
+world.AddSystem(resourceSystem);   // Tenth: Handle resources
+world.AddSystem(spawnerSystem);    // Last: Spawn new entities
 ```
