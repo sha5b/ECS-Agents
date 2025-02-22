@@ -3,11 +3,16 @@ using UnityEngine;
 public class CameraController : MonoBehaviour
 {
     [Header("Movement Settings")]
-    [SerializeField] private float normalSpeed = 10f;
-    [SerializeField] private float fastSpeed = 50f;
-    [SerializeField] private float movementSpeed = 10f;
-    [SerializeField] private float mouseSensitivity = 3f;
+    [Header("Movement Settings")]
+    [SerializeField] private float normalSpeed = 20f;
+    [SerializeField] private float fastSpeed = 100f;
+    [SerializeField] private float movementSpeed = 20f;
+    [SerializeField] private float mouseSensitivity = 5f;
     [SerializeField] private float speedChangeRate = 10f;
+
+    [Header("Starting Position")]
+    [SerializeField] private Vector3 startPosition = new Vector3(0, 100, -100);
+    [SerializeField] private Vector3 startRotation = new Vector3(30, 0, 0);
 
     private float rotationX = 0f;
     private float rotationY = 0f;
@@ -16,7 +21,11 @@ public class CameraController : MonoBehaviour
 
     void Start()
     {
-        // Initialize rotation to current camera rotation
+        // Set initial position and rotation
+        transform.position = startPosition;
+        transform.eulerAngles = startRotation;
+
+        // Initialize rotation variables
         rotationX = transform.eulerAngles.y;
         rotationY = -transform.eulerAngles.x;
         

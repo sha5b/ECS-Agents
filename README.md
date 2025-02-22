@@ -1,14 +1,14 @@
-# Unity ECS Implementation Guide
+# Unity ECS NPC Simulation
 
-This document provides a comprehensive guide to our Entity Component System (ECS) implementation, inspired by systems like those found in The Legend of Zelda: Breath of the Wild.
+This project implements an Entity Component System (ECS) for NPC simulation with behavior, needs, and resource management.
 
 ## Table of Contents
 1. [Architecture Overview](#architecture-overview)
-2. [Core Components](#core-components)
-3. [Environmental Systems](#environmental-systems)
-4. [System Interactions](#system-interactions)
-5. [Usage Examples](#usage-examples)
-6. [Best Practices](#best-practices)
+2. [Core Systems](#core-systems)
+3. [Components](#components)
+4. [NPC Behavior](#npc-behavior)
+5. [Resource Management](#resource-management)
+6. [Usage Examples](#usage-examples)
 
 ## Architecture Overview
 
@@ -29,113 +29,163 @@ Assets/Scripts/
 │   │   ├── ISystem.cs
 │   │   └── World.cs
 │   ├── Components/
-│   │   ├── HealthComponent.cs
-│   │   ├── TemperatureComponent.cs
-│   │   ├── TimeComponent.cs
-│   │   └── WeatherComponent.cs
+│   │   ├── BehaviorComponent.cs
+│   │   ├── NeedComponent.cs
+│   │   ├── Position3DComponent.cs
+│   │   └── ResourceComponent.cs
 │   └── Systems/
-│       ├── TemperatureSystem.cs
-│       ├── TimeSystem.cs
-│       └── WeatherSystem.cs
-└── Demo/
-    └── DemoManager.cs
+│       ├── BehaviorSystem.cs
+│       ├── MovementSystem.cs
+│       ├── NeedSystem.cs
+│       ├── ResourceSystem.cs
+│       ├── SpawnerSystem.cs
+│       └── TerrainGeneratorSystem.cs
 ```
 
-## Environmental Systems
+## Core Systems
 
-### Time System
-The TimeSystem manages the day/night cycle and time-based behaviors:
-- Day phases: Dawn (5-7), Day (7-17), Dusk (17-19), Night (19-5)
-- Affects entity activity patterns
-- Influences weather probabilities
-- Modifies temperature based on time of day
+### TerrainGeneratorSystem
+Creates a flat plane for NPCs to move on:
+- Generates basic terrain
+- Handles collision detection
+- Provides movement surface
 
+### SpawnerSystem
+Manages entity creation:
+- Spawns NPCs with randomized traits
+- Creates resources in the world
+- Maintains entity population
+
+### NeedSystem
+Manages NPC needs:
+- Hunger
+- Thirst
+- Energy
+- Social interaction
+- Tracks need satisfaction levels
+- Triggers behavior changes based on needs
+
+### BehaviorSystem
+Handles NPC decision making:
+- State management
+- Need-based decisions
+- Personality-driven actions
+- Memory of important locations
+
+### MovementSystem
+Controls entity movement:
+- Position updates
+- Rotation handling
+- Target following
+- Collision avoidance
+
+### ResourceSystem
+Manages world resources:
+- Food sources
+- Water sources
+- Rest spots
+- Resource depletion and replenishment
+
+## Components
+
+### Position3DComponent
 ```csharp
-// Example: Creating a time-aware entity
-var entity = world.CreateEntity();
-entity.AddComponent(new TimeComponent(
-    activeAtNight: true,
-    activeAtDay: false,
-    activityStartTime: 20f, // 8 PM
-    activityEndTime: 6f     // 6 AM
-));
+public class Position3DComponent : IComponent
+{
+    public Vector3 Position { get; private set; }
+    public Vector3 Scale { get; private set; }
+    public Quaternion Rotation { get; private set; }
+}
 ```
 
-### Weather System
-The WeatherSystem manages environmental conditions:
-- Weather states: Clear, Cloudy, Rain, Thunder, Snow, Sandstorm
-- Dynamic weather transitions
-- Time-based weather probabilities
-- Weather effects on entities
-
+### NeedComponent
 ```csharp
-// Example: Creating a weather-resistant entity
-entity.AddComponent(new WeatherComponent(
-    rainResistance: WeatherComponent.WeatherResistance.High,
-    thunderResistance: WeatherComponent.WeatherResistance.Medium,
-    snowResistance: WeatherComponent.WeatherResistance.Immune,
-    sandstormResistance: WeatherComponent.WeatherResistance.Low
-));
+public class NeedComponent : IComponent
+{
+    public float Hunger { get; private set; }
+    public float Thirst { get; private set; }
+    public float Energy { get; private set; }
+    public float Social { get; private set; }
+}
 ```
 
-### Temperature System
-The TemperatureSystem handles environmental and entity temperatures:
-- Base temperature varies by time of day
-- Weather affects temperature
-- Entities have optimal temperature ranges
-- Temperature stress causes damage
-
+### BehaviorComponent
 ```csharp
-// Example: Creating a temperature-sensitive entity
-entity.AddComponent(new TemperatureComponent(
-    optimalTemperature: 20f,
-    tolerance: 10f,
-    adaptRate: 1f
-));
+public class BehaviorComponent : IComponent
+{
+    public BehaviorState CurrentState { get; private set; }
+    public float Sociability { get; private set; }
+    public float Productivity { get; private set; }
+    public float Curiosity { get; private set; }
+    public float Resilience { get; private set; }
+}
 ```
 
-## System Interactions
+### ResourceComponent
+```csharp
+public class ResourceComponent : IComponent
+{
+    public ResourceType Type { get; private set; }
+    public float Quantity { get; private set; }
+    public float Quality { get; private set; }
+    public bool IsInfinite { get; private set; }
+}
+```
 
-### Time → Weather
-- Different weather probabilities for each day phase
-- Dawn: Higher chance of clear weather
-- Day: Balanced probabilities
-- Dusk: Higher chance of rain
-- Night: Higher chance of clear skies
+## NPC Behavior
 
-### Weather → Temperature
-- Rain reduces temperature
-- Snow indicates cold temperatures
-- Clear weather allows normal temperature progression
-- Sandstorms increase temperature
+NPCs make decisions based on:
+1. Current needs (hunger, thirst, energy, social)
+2. Personality traits (sociability, productivity, curiosity, resilience)
+3. Memory of resource locations
+4. Available resources in the environment
 
-### Temperature → Health
-- Temperature outside tolerance causes stress
-- High stress causes damage
-- Damage rate based on stress level
-- Entities can have different resistances
+### Behavior States
+- Idle
+- SeekingFood
+- SeekingWater
+- Resting
+- Socializing
+- Working
+- Exploring
+- MovingToTarget
+
+## Resource Management
+
+Resources in the world:
+- Food sources (depletable)
+- Water sources (can be infinite)
+- Rest spots (infinite)
+- Resource quality affects need satisfaction
+- Resources replenish over time
+- NPCs remember resource locations
 
 ## Usage Examples
 
-### Creating a Complete Entity
+### Creating an NPC
 ```csharp
-var entity = world.CreateEntity();
+var npc = world.CreateEntity();
 
-// Add health tracking
-entity.AddComponent(new HealthComponent(100f));
+// Add core components
+npc.AddComponent(new Position3DComponent(position));
+npc.AddComponent(new NeedComponent());
+npc.AddComponent(new BehaviorComponent(
+    sociability: Random.Range(0.3f, 1f),
+    productivity: Random.Range(0.3f, 1f),
+    curiosity: Random.Range(0.3f, 1f),
+    resilience: Random.Range(0.3f, 1f)
+));
+```
 
-// Add temperature sensitivity
-entity.AddComponent(new TemperatureComponent(20f, 10f, 1f));
+### Creating a Resource
+```csharp
+var resource = world.CreateEntity();
 
-// Add time-based behavior
-entity.AddComponent(new TimeComponent(true, true, 6f, 22f));
-
-// Add weather resistance
-entity.AddComponent(new WeatherComponent(
-    WeatherComponent.WeatherResistance.Medium,
-    WeatherComponent.WeatherResistance.High,
-    WeatherComponent.WeatherResistance.Low,
-    WeatherComponent.WeatherResistance.Immune
+// Add components
+resource.AddComponent(new Position3DComponent(position));
+resource.AddComponent(ResourceComponent.CreateFoodSource(
+    quantity: 100f,
+    quality: 0.8f
 ));
 ```
 
@@ -144,57 +194,19 @@ entity.AddComponent(new WeatherComponent(
 // Create world
 var world = gameObject.AddComponent<World>();
 
-// Create and add systems
-var timeSystem = new TimeSystem(world, 12f);
-var temperatureSystem = new TemperatureSystem(world);
-var weatherSystem = new WeatherSystem(world, timeSystem);
+// Create systems
+var terrainSystem = new TerrainGeneratorSystem(world);
+var needSystem = new NeedSystem(world);
+var resourceSystem = new ResourceSystem(world, needSystem);
+var behaviorSystem = new BehaviorSystem(world, needSystem);
+var movementSystem = new MovementSystem(world);
+var spawnerSystem = new SpawnerSystem(world);
 
-world.AddSystem(timeSystem);
-world.AddSystem(temperatureSystem);
-world.AddSystem(weatherSystem);
+// Add systems in update order
+world.AddSystem(terrainSystem);    // First: Create and manage terrain
+world.AddSystem(needSystem);       // Second: Update NPC needs
+world.AddSystem(behaviorSystem);   // Third: Make decisions based on needs
+world.AddSystem(movementSystem);   // Fourth: Move entities based on decisions
+world.AddSystem(resourceSystem);   // Fifth: Handle resource interactions
+world.AddSystem(spawnerSystem);    // Last: Spawn new entities if needed
 ```
-
-## Best Practices
-
-1. **System Order**
-   - TimeSystem should update first
-   - WeatherSystem should update second
-   - TemperatureSystem should update last
-   - This ensures proper environmental state propagation
-
-2. **Component Design**
-   - Keep components data-only
-   - Use immutable properties where possible
-   - Include methods only for data manipulation
-
-3. **System Design**
-   - Systems should focus on one aspect
-   - Check for required components before processing
-   - Consider dependencies between systems
-
-4. **Entity Management**
-   - Create entities through the World class
-   - Destroy entities when no longer needed
-   - Keep track of entity references where necessary
-
-5. **Performance Considerations**
-   - Cache component references when possible
-   - Use HasComponent checks before GetComponent
-   - Consider using object pooling for frequently created/destroyed entities
-
-## Extending the System
-
-To add new environmental effects:
-
-1. Create new components for new data types
-2. Create new systems to process the components
-3. Add the systems to the World
-4. Create entities with the new components
-
-Example workflow for adding a new feature:
-1. Identify the data needed (create components)
-2. Identify the logic needed (create systems)
-3. Integrate with existing systems if necessary
-4. Test with sample entities
-
-Remember: Components are for data, Systems are for logic, and Entities are just containers for Components.
