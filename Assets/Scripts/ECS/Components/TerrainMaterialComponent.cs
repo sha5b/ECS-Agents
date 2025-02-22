@@ -63,7 +63,9 @@ namespace ECS.Components
             Material material = new Material(Shader.Find("Universal Render Pipeline/Lit"));
             material.color = color;
             material.SetFloat("_Smoothness", 0.2f);
+            material.SetFloat("_Metallic", 0.0f);
             material.enableInstancing = true;
+            material.SetFloat("_Surface", 0); // Opaque
             return material;
         }
 

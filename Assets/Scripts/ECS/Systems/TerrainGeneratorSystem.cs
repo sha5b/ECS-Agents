@@ -47,7 +47,7 @@ namespace ECS.Systems
             // Biome noise
             biomeNoiseGenerator = new FastNoiseLite(43);
             biomeNoiseGenerator.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
-            biomeNoiseGenerator.SetFrequency(0.002f);
+            biomeNoiseGenerator.SetFrequency(0.001f); // Slower biome changes
 
             // Erosion noise
             erosionNoiseGenerator = new FastNoiseLite(44);
@@ -158,9 +158,10 @@ namespace ECS.Systems
 
         private BiomeType DetermineBiomeType(float biomeValue)
         {
-            if (biomeValue < -0.5f) return BiomeType.Tundra;
-            if (biomeValue < -0.2f) return BiomeType.Mountains;
-            if (biomeValue < 0.1f) return BiomeType.Forest;
+            // More evenly distributed biome thresholds
+            if (biomeValue < -0.6f) return BiomeType.Tundra;
+            if (biomeValue < -0.3f) return BiomeType.Mountains;
+            if (biomeValue < 0.0f) return BiomeType.Forest;
             if (biomeValue < 0.3f) return BiomeType.Plains;
             if (biomeValue < 0.6f) return BiomeType.Desert;
             return BiomeType.Swamp;
@@ -181,11 +182,55 @@ namespace ECS.Systems
                     float wx = worldPos.x + x * voxelSize;
                     float wz = worldPos.z + z * voxelSize;
 
+                    // Sample biome values from a larger area for smooth transitions
+
+                    // Get base terrain height
                     float baseHeight = noiseGenerator.GetNoise(wx * 0.8f, wz * 0.8f);
                     baseHeight = (baseHeight + 1f) * 0.3f;
                     float erosion = erosionNoiseGenerator.GetNoise(wx, wz) * 0.1f;
-                    float heightModifier = GetBiomeHeightModifier(biome.Type);
-                    heightMap[x, z] = (baseHeight + erosion) * heightModifier * size;
+
+                    // Sample neighboring biomes for smooth transitions
+                    float blendRadius = 16f; // Wider transition area
+                    float thisHeight = baseHeight * GetBiomeHeightModifier(biome.Type);
+                    
+                    // Sample neighboring points
+                    Vector2 worldPos2D = new Vector2(wx, wz);
+                    float[] neighborHeights = new float[4];
+                    Vector2[] offsets = new Vector2[] {
+                        new Vector2(blendRadius, 0),
+                        new Vector2(-blendRadius, 0),
+                        new Vector2(0, blendRadius),
+                        new Vector2(0, -blendRadius)
+                    };
+
+                    for (int i = 0; i < 4; i++)
+                    {
+                        Vector2 samplePos = worldPos2D + offsets[i];
+                        float biomeValue = biomeNoiseGenerator.GetNoise(samplePos.x * 0.01f, samplePos.y * 0.01f);
+                        BiomeType neighborBiome = DetermineBiomeType(biomeValue);
+                        neighborHeights[i] = baseHeight * GetBiomeHeightModifier(neighborBiome);
+                    }
+
+                    // Blend heights at boundaries
+                    float finalHeight = thisHeight;
+                    float edgeBlend = 1f;
+                    if (x < blendRadius) edgeBlend = Mathf.Min(edgeBlend, x / blendRadius);
+                    if (x > size - blendRadius) edgeBlend = Mathf.Min(edgeBlend, (size - x) / blendRadius);
+                    if (z < blendRadius) edgeBlend = Mathf.Min(edgeBlend, z / blendRadius);
+                    if (z > size - blendRadius) edgeBlend = Mathf.Min(edgeBlend, (size - z) / blendRadius);
+
+                    if (edgeBlend < 1f)
+                    {
+                        float avgNeighborHeight = 0f;
+                        for (int i = 0; i < 4; i++)
+                        {
+                            avgNeighborHeight += neighborHeights[i];
+                        }
+                        avgNeighborHeight *= 0.25f;
+                        finalHeight = Mathf.Lerp(avgNeighborHeight, thisHeight, edgeBlend);
+                    }
+
+                    heightMap[x, z] = (finalHeight + erosion) * size;
                 }
             }
 
@@ -227,17 +272,17 @@ namespace ECS.Systems
             switch (biomeType)
             {
                 case BiomeType.Mountains:
-                    return 1.2f;
+                    return 0.9f;  // Reduced from 1.2f
                 case BiomeType.Plains:
-                    return 0.3f;
+                    return 0.4f;  // Increased from 0.3f
                 case BiomeType.Desert:
-                    return 0.4f;
+                    return 0.5f;  // Increased from 0.4f
                 case BiomeType.Tundra:
-                    return 0.5f;
+                    return 0.6f;  // Increased from 0.5f
                 case BiomeType.Forest:
-                    return 0.6f;
+                    return 0.7f;  // Increased from 0.6f
                 case BiomeType.Swamp:
-                    return 0.2f;
+                    return 0.3f;  // Increased from 0.2f
                 default:
                     return 0.5f;
             }
