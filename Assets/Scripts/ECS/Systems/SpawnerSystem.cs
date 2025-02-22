@@ -9,129 +9,138 @@ namespace ECS.Systems
     {
         private World world;
         private List<Entity> entities;
-        private float nextSpawnTime;
-        private const float SPAWN_INTERVAL = 10f;
-        private const int MAX_NPCS = 20;
-        private const float WORLD_BOUNDS = 100f;
+        private bool initialSpawnDone = false;
+        private const int INITIAL_NPC_COUNT = 10;
+        private const float SPAWN_AREA_SIZE = 50f;
 
         public SpawnerSystem(World world)
         {
             this.world = world;
             this.entities = world.GetEntities();
-            this.nextSpawnTime = Time.time + SPAWN_INTERVAL;
         }
 
         public void Update(float deltaTime)
         {
-            if (Time.time >= nextSpawnTime)
+            if (!initialSpawnDone)
             {
-                SpawnEntities();
-                nextSpawnTime = Time.time + SPAWN_INTERVAL;
+                SpawnInitialEntities();
+                initialSpawnDone = true;
             }
         }
 
-        private void SpawnEntities()
+        private void SpawnInitialEntities()
         {
-            int npcCount = CountNPCs();
-            if (npcCount < MAX_NPCS)
+            Debug.Log("Spawning initial NPCs...");
+
+            // Spawn NPCs
+            for (int i = 0; i < INITIAL_NPC_COUNT; i++)
             {
                 SpawnNPC();
             }
 
-            // Spawn resources if needed
-            EnsureResourcesExist();
+            // Spawn some resources
+            SpawnResources();
         }
 
         private void SpawnNPC()
         {
-            Vector3 position = GetRandomPosition();
-            Entity npc = world.CreateEntity();
+            Vector3 position = new Vector3(
+                Random.Range(-SPAWN_AREA_SIZE, SPAWN_AREA_SIZE),
+                0f,
+                Random.Range(-SPAWN_AREA_SIZE, SPAWN_AREA_SIZE)
+            );
 
-            // Add core components
+            var npc = world.CreateEntity();
+
+            // Add components with randomized attributes
             npc.AddComponent(new Position3DComponent(position));
-            npc.AddComponent(new NeedComponent());
-            npc.AddComponent(new BehaviorComponent(
+            
+            var physical = new PhysicalComponent(
+                size: Random.Range(0.8f, 1.2f),
+                mass: Random.Range(60f, 90f),
+                maxSpeed: Random.Range(4f, 6f),
+                strength: Random.Range(0.7f, 1.3f),
+                stamina: Random.Range(80f, 120f)
+            );
+            npc.AddComponent(physical);
+
+            var social = new SocialComponent(
+                extroversion: Random.Range(0.3f, 1f),
+                agreeableness: Random.Range(0.3f, 1f),
+                trustworthiness: Random.Range(0.3f, 1f)
+            );
+            npc.AddComponent(social);
+
+            var behavior = new BehaviorComponent(
                 sociability: Random.Range(0.3f, 1f),
                 productivity: Random.Range(0.3f, 1f),
                 curiosity: Random.Range(0.3f, 1f),
                 resilience: Random.Range(0.3f, 1f)
-            ));
+            );
+            npc.AddComponent(behavior);
 
-            Debug.Log($"Spawned NPC at position {position}");
+            npc.AddComponent(new NeedComponent());
+            npc.AddComponent(new MemoryComponent());
+            npc.AddComponent(new TaskComponent());
+
+            Debug.Log($"Spawned NPC {npc.Id} at {position}");
+            Debug.Log($"Physical Attributes - Size: {physical.Size:F2}, Speed: {physical.MaxSpeed:F2}, Strength: {physical.Strength:F2}");
+            Debug.Log($"Social Attributes - Extroversion: {social.Extroversion:F2}, Agreeableness: {social.Agreeableness:F2}");
+            Debug.Log($"Behavior Traits - Sociability: {behavior.GetSocialPreference():F2}, Curiosity: {behavior.GetExplorationPreference():F2}");
         }
 
-        private Vector3 GetRandomPosition()
+        private void SpawnResources()
         {
-            float x = Random.Range(-WORLD_BOUNDS, WORLD_BOUNDS);
-            float z = Random.Range(-WORLD_BOUNDS, WORLD_BOUNDS);
-            return new Vector3(x, 0, z);
-        }
-
-        private void EnsureResourcesExist()
-        {
-            // Count existing resources
-            int foodSources = CountResourcesOfType(ResourceType.Food);
-            int waterSources = CountResourcesOfType(ResourceType.Water);
-            int restSpots = CountResourcesOfType(ResourceType.RestSpot);
-
-            // Spawn resources if needed
-            if (foodSources < 5) SpawnResource(ResourceType.Food);
-            if (waterSources < 3) SpawnResource(ResourceType.Water);
-            if (restSpots < 3) SpawnResource(ResourceType.RestSpot);
-        }
-
-        private void SpawnResource(ResourceType type)
-        {
-            Vector3 position = GetRandomPosition();
-            Entity resource = world.CreateEntity();
-
-            // Add core components
-            resource.AddComponent(new Position3DComponent(position));
-
-            // Add resource component based on type
-            ResourceComponent resourceComponent = type switch
+            // Spawn food sources
+            for (int i = 0; i < 5; i++)
             {
-                ResourceType.Food => ResourceComponent.CreateFoodSource(
-                    quantity: Random.Range(50f, 150f),
+                Vector3 position = new Vector3(
+                    Random.Range(-SPAWN_AREA_SIZE, SPAWN_AREA_SIZE),
+                    0f,
+                    Random.Range(-SPAWN_AREA_SIZE, SPAWN_AREA_SIZE)
+                );
+
+                var resource = world.CreateEntity();
+                resource.AddComponent(new Position3DComponent(position));
+                resource.AddComponent(ResourceComponent.CreateFoodSource(
+                    quantity: Random.Range(80f, 120f),
                     quality: Random.Range(0.6f, 1f)
-                ),
-                ResourceType.Water => ResourceComponent.CreateWaterSource(
-                    infinite: Random.value > 0.7f // 30% chance of infinite water source
-                ),
-                ResourceType.RestSpot => ResourceComponent.CreateRestSpot(),
-                _ => new ResourceComponent(type)
-            };
+                ));
 
-            resource.AddComponent(resourceComponent);
-            Debug.Log($"Spawned {type} resource at position {position}");
-        }
-
-        private int CountNPCs()
-        {
-            int count = 0;
-            foreach (var entity in entities)
-            {
-                if (entity.HasComponent<NeedComponent>() && 
-                    entity.HasComponent<BehaviorComponent>())
-                {
-                    count++;
-                }
+                Debug.Log($"Spawned Food Source at {position}");
             }
-            return count;
-        }
 
-        private int CountResourcesOfType(ResourceType type)
-        {
-            int count = 0;
-            foreach (var entity in entities)
+            // Spawn water sources
+            for (int i = 0; i < 3; i++)
             {
-                var resource = entity.GetComponent<ResourceComponent>();
-                if (resource != null && resource.Type == type)
-                {
-                    count++;
-                }
+                Vector3 position = new Vector3(
+                    Random.Range(-SPAWN_AREA_SIZE, SPAWN_AREA_SIZE),
+                    0f,
+                    Random.Range(-SPAWN_AREA_SIZE, SPAWN_AREA_SIZE)
+                );
+
+                var resource = world.CreateEntity();
+                resource.AddComponent(new Position3DComponent(position));
+                resource.AddComponent(ResourceComponent.CreateWaterSource(infinite: true));
+
+                Debug.Log($"Spawned Water Source at {position}");
             }
-            return count;
+
+            // Spawn rest spots
+            for (int i = 0; i < 4; i++)
+            {
+                Vector3 position = new Vector3(
+                    Random.Range(-SPAWN_AREA_SIZE, SPAWN_AREA_SIZE),
+                    0f,
+                    Random.Range(-SPAWN_AREA_SIZE, SPAWN_AREA_SIZE)
+                );
+
+                var resource = world.CreateEntity();
+                resource.AddComponent(new Position3DComponent(position));
+                resource.AddComponent(ResourceComponent.CreateRestSpot());
+
+                Debug.Log($"Spawned Rest Spot at {position}");
+            }
         }
     }
 }

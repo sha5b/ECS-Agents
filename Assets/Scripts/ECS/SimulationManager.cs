@@ -13,6 +13,11 @@ namespace ECS
         private BehaviorSystem behaviorSystem;
         private ResourceSystem resourceSystem;
         private TerrainGeneratorSystem terrainSystem;
+        private TimeSystem timeSystem;
+        private EventSystem eventSystem;
+        private NavigationSystem navigationSystem;
+        private SocialSystem socialSystem;
+        private TaskSystem taskSystem;
 
         private void Start()
         {
@@ -29,20 +34,30 @@ namespace ECS
         private void InitializeSystems()
         {
             // Create systems in dependency order
-            terrainSystem = new TerrainGeneratorSystem(world);
-            needSystem = new NeedSystem(world);
-            resourceSystem = new ResourceSystem(world, needSystem);
-            behaviorSystem = new BehaviorSystem(world, needSystem);
-            movementSystem = new MovementSystem(world);
-            spawnerSystem = new SpawnerSystem(world);
+            timeSystem = new TimeSystem(world);                    // Manages day/night cycle
+            eventSystem = new EventSystem(world);                  // Handles world events
+            terrainSystem = new TerrainGeneratorSystem(world);    // Creates the world
+            navigationSystem = new NavigationSystem(world);        // Handles pathfinding
+            needSystem = new NeedSystem(world);                   // Manages NPC needs
+            socialSystem = new SocialSystem(world);               // Handles NPC interactions
+            resourceSystem = new ResourceSystem(world, needSystem); // Manages resources
+            behaviorSystem = new BehaviorSystem(world, needSystem); // Makes decisions
+            taskSystem = new TaskSystem(world);                   // Manages NPC tasks
+            movementSystem = new MovementSystem(world);           // Handles movement
+            spawnerSystem = new SpawnerSystem(world);            // Creates entities
 
             // Add systems to world in update order
-            world.AddSystem(terrainSystem);    // First: Create and manage terrain
-            world.AddSystem(needSystem);       // Second: Update NPC needs
-            world.AddSystem(behaviorSystem);   // Third: Make decisions based on needs
-            world.AddSystem(movementSystem);   // Fourth: Move entities based on decisions
-            world.AddSystem(resourceSystem);   // Fifth: Handle resource interactions
-            world.AddSystem(spawnerSystem);    // Last: Spawn new entities if needed
+            world.AddSystem(timeSystem);       // First: Update time of day
+            world.AddSystem(eventSystem);      // Second: Process world events
+            world.AddSystem(terrainSystem);    // Third: Update terrain
+            world.AddSystem(needSystem);       // Fourth: Update NPC needs
+            world.AddSystem(socialSystem);     // Fifth: Process social interactions
+            world.AddSystem(behaviorSystem);   // Sixth: Make decisions
+            world.AddSystem(taskSystem);       // Seventh: Update tasks
+            world.AddSystem(navigationSystem); // Eighth: Plan paths
+            world.AddSystem(movementSystem);   // Ninth: Move entities
+            world.AddSystem(resourceSystem);   // Tenth: Handle resources
+            world.AddSystem(spawnerSystem);    // Last: Spawn new entities
 
             Debug.Log("ECS Systems initialized");
         }

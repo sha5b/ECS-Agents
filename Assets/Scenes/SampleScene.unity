@@ -435,7 +435,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 2071409690}
-  - component: {fileID: 2071409689}
+  - component: {fileID: 2071409691}
   m_Layer: 0
   m_Name: GameObject
   m_TagString: Untagged
@@ -443,33 +443,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &2071409689
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2071409688}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fc447df1c37e97a4596d2908b3944f83, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  timeScale: 60
-  mainCamera: {fileID: 0}
-  cameraController: {fileID: 0}
-  terrainSize: 200
-  terrainHeight: 100
-  baseHeight: 50
-  heightVariation: 20
-  resolution: 512
-  grassTexture: {fileID: 0}
-  rockTexture: {fileID: 0}
-  snowTexture: {fileID: 0}
-  textureScale: 500
-  numberOfEntities: 10
-  spawnHeight: 200
-  spawnAreaSize: 200
 --- !u!4 &2071409690
 Transform:
   m_ObjectHideFlags: 0
@@ -485,6 +458,18 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2071409691
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2071409688}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 807662b4666f32748bf8dfe8235699bc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

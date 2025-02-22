@@ -98,6 +98,21 @@ public class Position3DComponent : IComponent
 }
 ```
 
+### PhysicalComponent
+```csharp
+public class PhysicalComponent : IComponent
+{
+    public float Size { get; private set; }
+    public float Mass { get; private set; }
+    public float MaxSpeed { get; private set; }
+    public float Strength { get; private set; }
+    public float Stamina { get; private set; }
+    public float CurrentStamina { get; private set; }
+    public float MovementSpeed { get; private set; }
+    public bool IsExhausted => CurrentStamina <= 0;
+}
+```
+
 ### NeedComponent
 ```csharp
 public class NeedComponent : IComponent
@@ -168,13 +183,44 @@ var npc = world.CreateEntity();
 
 // Add core components
 npc.AddComponent(new Position3DComponent(position));
+npc.AddComponent(new PhysicalComponent(
+    size: Random.Range(0.8f, 1.2f),
+    mass: Random.Range(60f, 90f),
+    maxSpeed: Random.Range(4f, 6f),
+    strength: Random.Range(0.7f, 1.3f),
+    stamina: Random.Range(80f, 120f)
+));
 npc.AddComponent(new NeedComponent());
+npc.AddComponent(new MemoryComponent());
+npc.AddComponent(new SocialComponent(
+    extroversion: Random.Range(0.3f, 1f),
+    agreeableness: Random.Range(0.3f, 1f),
+    trustworthiness: Random.Range(0.3f, 1f)
+));
 npc.AddComponent(new BehaviorComponent(
     sociability: Random.Range(0.3f, 1f),
     productivity: Random.Range(0.3f, 1f),
     curiosity: Random.Range(0.3f, 1f),
     resilience: Random.Range(0.3f, 1f)
 ));
+npc.AddComponent(new TaskComponent());
+```
+
+### Monitoring NPCs
+To monitor NPC behavior and interactions, you can add debug logging in various systems:
+
+```csharp
+// In NeedSystem
+Debug.Log($"Entity {entity.Id} needs - Hunger: {needs.Hunger:F2}, Energy: {needs.Energy:F2}");
+
+// In BehaviorSystem
+Debug.Log($"Entity {entity.Id} changed state to {newState}");
+
+// In SocialSystem
+Debug.Log($"Entity {entity.Id} interacting with Entity {other.Id}, Quality: {quality:F2}");
+
+// In TaskSystem
+Debug.Log($"Entity {entity.Id} started task: {task.Id} with priority {task.Priority}");
 ```
 
 ### Creating a Resource
