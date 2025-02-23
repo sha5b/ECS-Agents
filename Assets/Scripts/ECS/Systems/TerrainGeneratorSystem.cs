@@ -40,21 +40,21 @@ namespace ECS.Systems
             // Main terrain noise
             noiseGenerator = new FastNoiseLite(42);
             noiseGenerator.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
-            noiseGenerator.SetFrequency(0.03f);
+            noiseGenerator.SetFrequency(0.015f); // Reduced frequency for larger features
             noiseGenerator.SetFractalType(FastNoiseLite.FractalType.FBm);
-            noiseGenerator.SetFractalOctaves(6);
+            noiseGenerator.SetFractalOctaves(8); // Increased octaves for more detail blending
 
             // Biome noise
             biomeNoiseGenerator = new FastNoiseLite(43);
             biomeNoiseGenerator.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
-            biomeNoiseGenerator.SetFrequency(0.001f); // Slower biome changes
+            biomeNoiseGenerator.SetFrequency(0.0005f); // Even slower biome changes for smoother transitions
 
             // Erosion noise
             erosionNoiseGenerator = new FastNoiseLite(44);
             erosionNoiseGenerator.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2);
-            erosionNoiseGenerator.SetFrequency(0.05f);
+            erosionNoiseGenerator.SetFrequency(0.02f); // Reduced frequency for gentler erosion
             erosionNoiseGenerator.SetFractalType(FastNoiseLite.FractalType.FBm);
-            erosionNoiseGenerator.SetFractalOctaves(3);
+            erosionNoiseGenerator.SetFractalOctaves(4); // Increased octaves for smoother erosion
 
             // Cave noise
             caveNoiseGenerator = new FastNoiseLite(45);
@@ -185,9 +185,9 @@ namespace ECS.Systems
                     // Sample biome values from a larger area for smooth transitions
 
                     // Get base terrain height
-                    float baseHeight = noiseGenerator.GetNoise(wx * 0.8f, wz * 0.8f);
-                    baseHeight = (baseHeight + 1f) * 0.3f;
-                    float erosion = erosionNoiseGenerator.GetNoise(wx, wz) * 0.1f;
+                    float baseHeight = noiseGenerator.GetNoise(wx * 0.5f, wz * 0.5f); // Reduced scale for smoother base terrain
+                    baseHeight = (baseHeight + 1f) * 0.4f; // Increased height range
+                    float erosion = erosionNoiseGenerator.GetNoise(wx, wz) * 0.05f; // Reduced erosion impact
 
                     // Sample neighboring biomes for smooth transitions
                     float blendRadius = 16f; // Wider transition area
@@ -272,17 +272,17 @@ namespace ECS.Systems
             switch (biomeType)
             {
                 case BiomeType.Mountains:
-                    return 0.9f;  // Reduced from 1.2f
+                    return 0.8f;  // Further reduced for smoother mountains
                 case BiomeType.Plains:
-                    return 0.4f;  // Increased from 0.3f
+                    return 0.5f;  // Closer to other biomes
                 case BiomeType.Desert:
-                    return 0.5f;  // Increased from 0.4f
+                    return 0.55f; // Closer to plains
                 case BiomeType.Tundra:
-                    return 0.6f;  // Increased from 0.5f
+                    return 0.6f;  // Kept same
                 case BiomeType.Forest:
-                    return 0.7f;  // Increased from 0.6f
+                    return 0.65f; // Closer to other biomes
                 case BiomeType.Swamp:
-                    return 0.3f;  // Increased from 0.2f
+                    return 0.45f; // Closer to plains
                 default:
                     return 0.5f;
             }
@@ -324,7 +324,7 @@ namespace ECS.Systems
             List<Vector2> uvs = new List<Vector2>();
 
             int resolution = TerrainChunkComponent.CHUNK_SIZE;
-            float heightScale = 3f;
+            float heightScale = 2.5f; // Reduced height scale for smoother appearance
 
             // Pre-calculate heights for efficiency
             float[,] heights = new float[resolution + 1, resolution + 1];
