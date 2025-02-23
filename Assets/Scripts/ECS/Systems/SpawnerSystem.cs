@@ -39,7 +39,7 @@ namespace ECS.Systems
             var rb = cube.AddComponent<Rigidbody>();
             rb.constraints = RigidbodyConstraints.FreezeRotation; // Keep NPC upright
             rb.mass = 70f;
-            rb.drag = 1f;
+            rb.linearDamping = 1f; // Use linearDamping instead of obsolete drag
             rb.interpolation = RigidbodyInterpolation.Interpolate;
             rb.collisionDetectionMode = CollisionDetectionMode.Continuous;
             
@@ -56,17 +56,18 @@ namespace ECS.Systems
 
         public void SpawnNPC(Vector3 position)
         {
-            // Raycast to find terrain height
+            // Start from high up and raycast down
+            Vector3 spawnPos = new Vector3(position.x, 1000f, position.z);
             RaycastHit hit;
-            Vector3 spawnPos = position;
-            if (Physics.Raycast(position + Vector3.up * 100f, Vector3.down, out hit, 200f))
+            if (Physics.Raycast(spawnPos, Vector3.down, out hit, 2000f))
             {
-                spawnPos = hit.point + Vector3.up; // Place slightly above terrain
+                spawnPos = hit.point + (Vector3.up * 2f); // Place 2 units above terrain
+                Debug.Log($"Found terrain at height {hit.point.y}, spawning at {spawnPos.y}");
             }
             else
             {
                 Debug.LogWarning($"No terrain found at {position}, using default height");
-                spawnPos.y = 1f; // Default height if no terrain found
+                spawnPos.y = 2f; // Default height if no terrain found
             }
 
             var npc = world.CreateEntity();
@@ -117,11 +118,20 @@ namespace ECS.Systems
                 // Respawn at a random position in the wider area
                 float angle = Random.Range(0f, 360f);
                 float radius = Random.Range(10f, RESPAWN_RANGE); // Minimum distance from center
+                // Calculate spawn position high above terrain
                 Vector3 spawnPos = new Vector3(
                     Mathf.Cos(angle * Mathf.Deg2Rad) * radius,
-                    100f, // Start high to raycast down
+                    1000f, // Much higher to ensure we're above terrain
                     Mathf.Sin(angle * Mathf.Deg2Rad) * radius
                 );
+
+                // First raycast to find terrain height
+                RaycastHit hit;
+                if (Physics.Raycast(spawnPos, Vector3.down, out hit, 2000f))
+                {
+                    // Adjust spawn position to be slightly above found terrain
+                    spawnPos = hit.point + (Vector3.up * 2f);
+                }
                 SpawnNPC(spawnPos);
                 Debug.Log($"Respawned NPC at {spawnPos}, Current population: {currentPopulation + 1}");
             }
