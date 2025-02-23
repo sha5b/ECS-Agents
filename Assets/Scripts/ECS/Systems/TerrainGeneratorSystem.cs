@@ -444,13 +444,18 @@ namespace ECS.Systems
             Vector3 posA = chunkAComponent.GetWorldPosition();
             Vector3 posB = chunkBComponent.GetWorldPosition();
             
-            // Calculate connection points at the midpoint between chunks
+            // Calculate connection points
             Vector3 midpoint = (posA + posB) * 0.5f;
             float chunkSize = TerrainChunkComponent.CHUNK_SIZE * TerrainChunkComponent.VOXEL_SIZE;
 
+            // Create connection points slightly inset from chunk edges
+            Vector3 directionAtoB = (posB - posA).normalized;
+            Vector3 connectionA = posA + directionAtoB * (chunkSize * 0.45f);
+            Vector3 connectionB = posB - directionAtoB * (chunkSize * 0.45f);
+
             // Add connection points
-            navMeshA.AddConnection(posA, midpoint);
-            navMeshB.AddConnection(posB, midpoint);
+            navMeshA.AddConnection(connectionA, midpoint);
+            navMeshB.AddConnection(connectionB, midpoint);
         }
 
         public void OnDestroy()
