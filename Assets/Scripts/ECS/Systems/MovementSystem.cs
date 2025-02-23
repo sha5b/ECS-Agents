@@ -110,14 +110,22 @@ namespace ECS.Systems
                 ROTATION_SPEED * deltaTime
             );
 
-            // Update position and rotation
-            position.UpdatePosition(newPosition);
-            position.UpdateRotation(newRotation);
-
-            // Update body and animations if present
-            if (body != null)
+            // Update movement through physics
+            if (body?.ModelInstance != null)
             {
-                body.UpdatePosition(newPosition, newRotation);
+                var rb = body.ModelInstance.GetComponentInChildren<Rigidbody>();
+                if (rb != null)
+                {
+                    // Calculate movement force
+                    Vector3 moveForce = direction * currentSpeed * 10f; // Multiply by force factor
+                    rb.AddForce(moveForce, ForceMode.Force);
+
+                    // Update rotation
+                    body.ModelInstance.transform.rotation = newRotation;
+                    position.UpdateRotation(newRotation);
+                }
+
+                // Update position from physics in SpawnerSystem
                 
                 // Calculate animation parameters
                 float speedRatio = currentSpeed / physical.MaxSpeed;
@@ -161,17 +169,33 @@ namespace ECS.Systems
 
             if (distance > SOCIAL_DISTANCE * 1.5f)
             {
-                // Move closer
-                Vector3 newPosition = position.Position + direction * BASE_MOVEMENT_SPEED * deltaTime;
-                position.UpdatePosition(newPosition);
-                position.UpdateRotation(Quaternion.LookRotation(direction));
+                // Move closer through physics
+                if (body?.ModelInstance != null)
+                {
+                    var rb = body.ModelInstance.GetComponentInChildren<Rigidbody>();
+                    if (rb != null)
+                    {
+                        Vector3 moveForce = direction * BASE_MOVEMENT_SPEED * 10f;
+                        rb.AddForce(moveForce, ForceMode.Force);
+                        body.ModelInstance.transform.rotation = Quaternion.LookRotation(direction);
+                        position.UpdateRotation(Quaternion.LookRotation(direction));
+                    }
+                }
             }
             else if (distance < SOCIAL_DISTANCE * 0.5f)
             {
-                // Move away
-                Vector3 newPosition = position.Position - direction * BASE_MOVEMENT_SPEED * deltaTime;
-                position.UpdatePosition(newPosition);
-                position.UpdateRotation(Quaternion.LookRotation(-direction));
+                // Move away through physics
+                if (body?.ModelInstance != null)
+                {
+                    var rb = body.ModelInstance.GetComponentInChildren<Rigidbody>();
+                    if (rb != null)
+                    {
+                        Vector3 moveForce = -direction * BASE_MOVEMENT_SPEED * 10f;
+                        rb.AddForce(moveForce, ForceMode.Force);
+                        body.ModelInstance.transform.rotation = Quaternion.LookRotation(-direction);
+                        position.UpdateRotation(Quaternion.LookRotation(-direction));
+                    }
+                }
             }
             else
             {

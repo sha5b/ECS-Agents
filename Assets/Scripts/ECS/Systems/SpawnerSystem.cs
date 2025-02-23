@@ -34,6 +34,14 @@ namespace ECS.Systems
             var material = new Material(Shader.Find("Universal Render Pipeline/Lit"));
             material.color = Color.yellow;
             cube.GetComponent<MeshRenderer>().material = material;
+
+            // Add Rigidbody for physics
+            var rb = cube.AddComponent<Rigidbody>();
+            rb.constraints = RigidbodyConstraints.FreezeRotation; // Keep NPC upright
+            rb.mass = 70f;
+            rb.drag = 1f;
+            rb.interpolation = RigidbodyInterpolation.Interpolate;
+            rb.collisionDetectionMode = CollisionDetectionMode.Continuous;
             
             // Add animator
             var animator = npcPrefab.AddComponent<Animator>();
@@ -48,10 +56,23 @@ namespace ECS.Systems
 
         public void SpawnNPC(Vector3 position)
         {
+            // Raycast to find terrain height
+            RaycastHit hit;
+            Vector3 spawnPos = position;
+            if (Physics.Raycast(position + Vector3.up * 100f, Vector3.down, out hit, 200f))
+            {
+                spawnPos = hit.point + Vector3.up; // Place slightly above terrain
+            }
+            else
+            {
+                Debug.LogWarning($"No terrain found at {position}, using default height");
+                spawnPos.y = 1f; // Default height if no terrain found
+            }
+
             var npc = world.CreateEntity();
 
             // Add core components
-            npc.AddComponent(new Position3DComponent(position));
+            npc.AddComponent(new Position3DComponent(spawnPos));
             npc.AddComponent(new PhysicalComponent(
                 size: Random.Range(0.8f, 1.2f),
                 mass: Random.Range(60f, 90f),
@@ -98,7 +119,7 @@ namespace ECS.Systems
                 float radius = Random.Range(10f, RESPAWN_RANGE); // Minimum distance from center
                 Vector3 spawnPos = new Vector3(
                     Mathf.Cos(angle * Mathf.Deg2Rad) * radius,
-                    0f,
+                    100f, // Start high to raycast down
                     Mathf.Sin(angle * Mathf.Deg2Rad) * radius
                 );
                 SpawnNPC(spawnPos);
@@ -107,6 +128,18 @@ namespace ECS.Systems
 
             // Update NPC colors based on their state
             UpdateNPCColors();
+
+            // Update NPC positions from physics
+            foreach (var entity in entities)
+            {
+                var body = entity.GetComponent<BodyComponent>();
+                var position = entity.GetComponent<Position3DComponent>();
+                
+                if (body?.ModelInstance != null && position != null)
+                {
+                    position.UpdatePosition(body.ModelInstance.transform.position);
+                }
+            }
         }
 
         private void UpdateNPCColors()
