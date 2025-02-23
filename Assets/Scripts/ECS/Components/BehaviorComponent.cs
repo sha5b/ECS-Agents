@@ -13,7 +13,10 @@ namespace ECS.Components
         Socializing,
         Working,
         Exploring,
-        MovingToTarget
+        MovingToTarget,
+        Walking,
+        Running,
+        Turning
     }
 
     public class BehaviorComponent : IComponent

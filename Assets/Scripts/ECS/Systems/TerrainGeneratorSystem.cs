@@ -150,8 +150,9 @@ namespace ECS.Systems
             // Generate terrain data
             GenerateTerrainData(chunkComponent, biomeComponent);
 
-            // Create mesh
-            GenerateChunkMesh(chunk);
+            // Create mesh and setup navigation
+            var mesh = GenerateChunkMesh(chunk);
+            SetupChunkNavigation(chunk, mesh, coord);
 
             chunks.Add(coord, chunk);
         }
@@ -293,7 +294,7 @@ namespace ECS.Systems
             return surfaceHeight - height;
         }
 
-        private void GenerateChunkMesh(Entity chunk)
+        private Mesh GenerateChunkMesh(Entity chunk)
         {
             var chunkComponent = chunk.GetComponent<TerrainChunkComponent>();
             var biomeComponent = chunk.GetComponent<BiomeComponent>();
@@ -315,6 +316,8 @@ namespace ECS.Systems
 
             chunkComponent.SetChunkObject(chunkObject);
             chunkComponent.MarkMeshGenerated();
+
+            return mesh;
         }
 
         private Mesh GenerateMarchingCubesMesh(TerrainChunkComponent chunk)
@@ -391,6 +394,63 @@ namespace ECS.Systems
                 world.DestroyEntity(chunk);
                 chunks.Remove(coord);
             }
+        }
+
+        private void SetupChunkNavigation(Entity chunk, Mesh mesh, Vector2Int coord)
+        {
+            var chunkComponent = chunk.GetComponent<TerrainChunkComponent>();
+            var navMesh = chunk.GetComponent<NavMeshComponent>();
+
+            if (navMesh == null)
+            {
+                navMesh = new NavMeshComponent();
+                chunk.AddComponent(navMesh);
+            }
+
+            // Update NavMesh for this chunk
+            navMesh.UpdateNavMesh(mesh, chunkComponent.GetWorldPosition());
+
+            // Create connections to adjacent chunks
+            foreach (var adjacentCoord in GetAdjacentChunkCoords(coord))
+            {
+                if (chunks.TryGetValue(adjacentCoord, out Entity adjacentChunk))
+                {
+                    CreateChunkConnection(chunk, adjacentChunk);
+                }
+            }
+        }
+
+        private Vector2Int[] GetAdjacentChunkCoords(Vector2Int coord)
+        {
+            return new Vector2Int[]
+            {
+                coord + new Vector2Int(1, 0),  // Right
+                coord + new Vector2Int(-1, 0), // Left
+                coord + new Vector2Int(0, 1),  // Up
+                coord + new Vector2Int(0, -1)  // Down
+            };
+        }
+
+        private void CreateChunkConnection(Entity chunkA, Entity chunkB)
+        {
+            var chunkAComponent = chunkA.GetComponent<TerrainChunkComponent>();
+            var chunkBComponent = chunkB.GetComponent<TerrainChunkComponent>();
+            var navMeshA = chunkA.GetComponent<NavMeshComponent>();
+            var navMeshB = chunkB.GetComponent<NavMeshComponent>();
+
+            if (chunkAComponent == null || chunkBComponent == null || 
+                navMeshA == null || navMeshB == null) return;
+
+            Vector3 posA = chunkAComponent.GetWorldPosition();
+            Vector3 posB = chunkBComponent.GetWorldPosition();
+            
+            // Calculate connection points at the midpoint between chunks
+            Vector3 midpoint = (posA + posB) * 0.5f;
+            float chunkSize = TerrainChunkComponent.CHUNK_SIZE * TerrainChunkComponent.VOXEL_SIZE;
+
+            // Add connection points
+            navMeshA.AddConnection(posA, midpoint);
+            navMeshB.AddConnection(posB, midpoint);
         }
 
         public void OnDestroy()

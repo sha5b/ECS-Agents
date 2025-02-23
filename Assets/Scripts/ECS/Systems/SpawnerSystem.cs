@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Animations;
 using ECS.Core;
 using ECS.Components;
 using System.Collections.Generic;
@@ -9,137 +10,149 @@ namespace ECS.Systems
     {
         private World world;
         private List<Entity> entities;
-        private bool initialSpawnDone = false;
-        private const int INITIAL_NPC_COUNT = 3;
-        private const float SPAWN_AREA_SIZE = 50f;
+        private GameObject npcPrefab;
 
         public SpawnerSystem(World world)
         {
             this.world = world;
             this.entities = world.GetEntities();
+            CreateNPCPrefab();
         }
 
-        public void Update(float deltaTime)
+        private void CreateNPCPrefab()
         {
-            if (!initialSpawnDone)
-            {
-                SpawnInitialEntities();
-                initialSpawnDone = true;
-            }
+            // Create a basic NPC prefab
+            npcPrefab = new GameObject("NPC_Prefab");
+            
+            // Add a cube for the body
+            var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            cube.transform.SetParent(npcPrefab.transform);
+            cube.transform.localPosition = Vector3.up; // Center the cube
+            cube.transform.localScale = new Vector3(0.8f, 1.6f, 0.8f); // Make it more humanoid proportions
+            
+            // Add material with color
+            var material = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            material.color = Color.yellow;
+            cube.GetComponent<MeshRenderer>().material = material;
+            
+            // Add animator
+            var animator = npcPrefab.AddComponent<Animator>();
+            
+            // For now, we'll just use the cube without animations
+            // In a real implementation, you would create an Animator Controller in Unity
+            // and assign it to the prefab, or load it from Resources
+
+            // Don't destroy the prefab when loading new scenes
+            GameObject.DontDestroyOnLoad(npcPrefab);
         }
 
-        private void SpawnInitialEntities()
+        public void SpawnNPC(Vector3 position)
         {
-            Debug.Log("Spawning initial NPCs...");
-
-            // Spawn NPCs
-            for (int i = 0; i < INITIAL_NPC_COUNT; i++)
-            {
-                SpawnNPC();
-            }
-
-            // Spawn some resources
-            SpawnResources();
-        }
-
-        private void SpawnNPC()
-        {
-            Vector3 position = new Vector3(
-                Random.Range(-SPAWN_AREA_SIZE, SPAWN_AREA_SIZE),
-                0f,
-                Random.Range(-SPAWN_AREA_SIZE, SPAWN_AREA_SIZE)
-            );
-
             var npc = world.CreateEntity();
 
-            // Add components with randomized attributes
+            // Add core components
             npc.AddComponent(new Position3DComponent(position));
-            
-            var physical = new PhysicalComponent(
+            npc.AddComponent(new PhysicalComponent(
                 size: Random.Range(0.8f, 1.2f),
                 mass: Random.Range(60f, 90f),
                 maxSpeed: Random.Range(4f, 6f),
                 strength: Random.Range(0.7f, 1.3f),
                 stamina: Random.Range(80f, 120f)
-            );
-            npc.AddComponent(physical);
+            ));
 
-            var social = new SocialComponent(
-                extroversion: Random.Range(0.3f, 1f),
-                agreeableness: Random.Range(0.3f, 1f),
-                trustworthiness: Random.Range(0.3f, 1f)
-            );
-            npc.AddComponent(social);
-
-            var behavior = new BehaviorComponent(
+            // Add behavior and navigation
+            npc.AddComponent(new BehaviorComponent(
                 sociability: Random.Range(0.3f, 1f),
                 productivity: Random.Range(0.3f, 1f),
                 curiosity: Random.Range(0.3f, 1f),
                 resilience: Random.Range(0.3f, 1f)
-            );
-            npc.AddComponent(behavior);
+            ));
+            npc.AddComponent(new NavMeshComponent(
+                agentRadius: 0.5f,
+                agentHeight: 2f,
+                maxSlope: 45f,
+                stepHeight: 0.4f
+            ));
 
+            // Add visual representation
+            npc.AddComponent(new BodyComponent(npcPrefab));
+
+            // Add other components
             npc.AddComponent(new NeedComponent());
             npc.AddComponent(new MemoryComponent());
             npc.AddComponent(new TaskComponent());
-
-            Debug.Log($"Spawned NPC {npc.Id} at {position}");
-            Debug.Log($"Physical Attributes - Size: {physical.Size:F2}, Speed: {physical.MaxSpeed:F2}, Strength: {physical.Strength:F2}");
-            Debug.Log($"Social Attributes - Extroversion: {social.Extroversion:F2}, Agreeableness: {social.Agreeableness:F2}");
-            Debug.Log($"Behavior Traits - Sociability: {behavior.GetSocialPreference():F2}, Curiosity: {behavior.GetExplorationPreference():F2}");
+            npc.AddComponent(new SocialComponent());
         }
 
-        private void SpawnResources()
+        public void Update(float deltaTime)
         {
-            // Spawn food sources
-            for (int i = 0; i < 2; i++)
+            // Maintain desired population
+            const int DESIRED_POPULATION = 10;
+            const float RESPAWN_RANGE = 50f; // Wider range for respawns
+            int currentPopulation = entities.Count;
+            
+            if (currentPopulation < DESIRED_POPULATION)
             {
-                Vector3 position = new Vector3(
-                    Random.Range(-SPAWN_AREA_SIZE, SPAWN_AREA_SIZE),
+                // Respawn at a random position in the wider area
+                float angle = Random.Range(0f, 360f);
+                float radius = Random.Range(10f, RESPAWN_RANGE); // Minimum distance from center
+                Vector3 spawnPos = new Vector3(
+                    Mathf.Cos(angle * Mathf.Deg2Rad) * radius,
                     0f,
-                    Random.Range(-SPAWN_AREA_SIZE, SPAWN_AREA_SIZE)
+                    Mathf.Sin(angle * Mathf.Deg2Rad) * radius
                 );
-
-                var resource = world.CreateEntity();
-                resource.AddComponent(new Position3DComponent(position));
-                resource.AddComponent(ResourceComponent.CreateFoodSource(
-                    quantity: Random.Range(80f, 120f),
-                    quality: Random.Range(0.6f, 1f)
-                ));
-
-                Debug.Log($"Spawned Food Source at {position}");
+                SpawnNPC(spawnPos);
+                Debug.Log($"Respawned NPC at {spawnPos}, Current population: {currentPopulation + 1}");
             }
 
-            // Spawn water source
-            for (int i = 0; i < 1; i++)
+            // Update NPC colors based on their state
+            UpdateNPCColors();
+        }
+
+        private void UpdateNPCColors()
+        {
+            foreach (var entity in entities)
             {
-                Vector3 position = new Vector3(
-                    Random.Range(-SPAWN_AREA_SIZE, SPAWN_AREA_SIZE),
-                    0f,
-                    Random.Range(-SPAWN_AREA_SIZE, SPAWN_AREA_SIZE)
-                );
+                var body = entity.GetComponent<BodyComponent>();
+                var behavior = entity.GetComponent<BehaviorComponent>();
+                
+                if (body?.ModelInstance == null || behavior == null) continue;
 
-                var resource = world.CreateEntity();
-                resource.AddComponent(new Position3DComponent(position));
-                resource.AddComponent(ResourceComponent.CreateWaterSource(infinite: true));
+                var renderer = body.ModelInstance.GetComponentInChildren<MeshRenderer>();
+                if (renderer == null) continue;
 
-                Debug.Log($"Spawned Water Source at {position}");
+                Color color = Color.yellow; // Default color
+                switch (behavior.CurrentState)
+                {
+                    case BehaviorState.SeekingFood:
+                        color = Color.red;
+                        break;
+                    case BehaviorState.SeekingWater:
+                        color = Color.blue;
+                        break;
+                    case BehaviorState.Socializing:
+                        color = Color.green;
+                        break;
+                    case BehaviorState.Resting:
+                        color = Color.gray;
+                        break;
+                    case BehaviorState.Working:
+                        color = Color.cyan;
+                        break;
+                    case BehaviorState.Exploring:
+                        color = Color.magenta;
+                        break;
+                }
+
+                renderer.material.color = color;
             }
+        }
 
-            // Spawn rest spots
-            for (int i = 0; i < 2; i++)
+        public void Cleanup()
+        {
+            if (npcPrefab != null)
             {
-                Vector3 position = new Vector3(
-                    Random.Range(-SPAWN_AREA_SIZE, SPAWN_AREA_SIZE),
-                    0f,
-                    Random.Range(-SPAWN_AREA_SIZE, SPAWN_AREA_SIZE)
-                );
-
-                var resource = world.CreateEntity();
-                resource.AddComponent(new Position3DComponent(position));
-                resource.AddComponent(ResourceComponent.CreateRestSpot());
-
-                Debug.Log($"Spawned Rest Spot at {position}");
+                GameObject.Destroy(npcPrefab);
             }
         }
     }

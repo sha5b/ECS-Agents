@@ -59,7 +59,30 @@ namespace ECS
             world.AddSystem(resourceSystem);   // Tenth: Handle resources
             world.AddSystem(spawnerSystem);    // Last: Spawn new entities
 
+            // Spawn initial NPCs
+            SpawnInitialNPCs();
+
             Debug.Log("ECS Systems initialized");
+        }
+
+        private void SpawnInitialNPCs()
+        {
+            const int INITIAL_NPC_COUNT = 10;
+            const float INITIAL_SPAWN_RANGE = 5f; // Much smaller range for initial spawn
+
+            for (int i = 0; i < INITIAL_NPC_COUNT; i++)
+            {
+                // Spawn in a small circle around center
+                float angle = (i / (float)INITIAL_NPC_COUNT) * 360f;
+                float radius = Random.Range(1f, INITIAL_SPAWN_RANGE);
+                Vector3 position = new Vector3(
+                    Mathf.Cos(angle * Mathf.Deg2Rad) * radius,
+                    0f,
+                    Mathf.Sin(angle * Mathf.Deg2Rad) * radius
+                );
+                spawnerSystem.SpawnNPC(position);
+                Debug.Log($"Spawned NPC {i + 1} at {position}");
+            }
         }
 
         private void Update()

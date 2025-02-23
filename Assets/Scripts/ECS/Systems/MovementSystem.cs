@@ -2,6 +2,7 @@ using UnityEngine;
 using ECS.Core;
 using ECS.Components;
 using System.Collections.Generic;
+using System;
 
 namespace ECS.Systems
 {
@@ -15,6 +16,12 @@ namespace ECS.Systems
         private const float RUNNING_SPEED_MULTIPLIER = 1.5f;
         private const float ARRIVAL_DISTANCE = 0.5f;
         private const float PATH_UPDATE_INTERVAL = 0.5f;
+        private const float ROTATION_THRESHOLD = 0.1f;
+        private const float ROTATION_SPEED = 10f;
+
+        // Animation thresholds
+        private const float WALK_SPEED_THRESHOLD = 0.1f;
+        private const float RUN_SPEED_THRESHOLD = 4f;
 
         public MovementSystem(World world)
         {
@@ -28,8 +35,10 @@ namespace ECS.Systems
             {
                 var position = entity.GetComponent<Position3DComponent>();
                 var behavior = entity.GetComponent<BehaviorComponent>();
+                var physical = entity.GetComponent<PhysicalComponent>();
+                var body = entity.GetComponent<BodyComponent>();
                 
-                if (position == null || behavior == null) continue;
+                if (position == null || behavior == null || physical == null) continue;
 
                 // Handle movement based on behavior state
                 switch (behavior.CurrentState)
@@ -66,6 +75,10 @@ namespace ECS.Systems
             Vector3 direction = (targetPos - currentPos).normalized;
             float distance = Vector3.Distance(currentPos, targetPos);
 
+            // Calculate rotation
+            Quaternion targetRotation = Quaternion.LookRotation(direction);
+            bool isTurning = Quaternion.Angle(position.Rotation, targetRotation) > ROTATION_THRESHOLD;
+
             // Check if we've arrived
             if (distance <= ARRIVAL_DISTANCE)
             {
@@ -73,20 +86,59 @@ namespace ECS.Systems
                 return;
             }
 
-            // Calculate movement speed
-            float speed = BASE_MOVEMENT_SPEED;
+            // Get physical component
+            var physical = entity.GetComponent<PhysicalComponent>();
+            var body = entity.GetComponent<BodyComponent>();
+            if (physical == null) return;
+
+            // Calculate base movement speed
+            float speed = physical.MovementSpeed;
             if (behavior.CurrentState == BehaviorState.SeekingFood || 
                 behavior.CurrentState == BehaviorState.SeekingWater)
             {
                 speed *= RUNNING_SPEED_MULTIPLIER;
             }
 
-            // Move towards target
-            Vector3 newPosition = currentPos + direction * speed * deltaTime;
+            // Calculate current speed based on turning
+            float currentSpeed = speed * (isTurning ? 0.5f : 1f);
+            Vector3 newPosition = currentPos + direction * currentSpeed * deltaTime;
+
+            // Smoothly rotate towards target
+            Quaternion newRotation = Quaternion.Lerp(
+                position.Rotation,
+                targetRotation,
+                ROTATION_SPEED * deltaTime
+            );
 
             // Update position and rotation
             position.UpdatePosition(newPosition);
-            position.UpdateRotation(Quaternion.LookRotation(direction));
+            position.UpdateRotation(newRotation);
+
+            // Update body and animations if present
+            if (body != null)
+            {
+                body.UpdatePosition(newPosition, newRotation);
+                
+                // Calculate animation parameters
+                float speedRatio = currentSpeed / physical.MaxSpeed;
+                float staminaRatio = physical.GetStaminaPercentage();
+                
+                body.UpdateAnimationState(speedRatio, isTurning, staminaRatio);
+
+                // Set appropriate animation state
+                if (speedRatio > RUN_SPEED_THRESHOLD)
+                {
+                    body.PlayAnimation("Run");
+                }
+                else if (speedRatio > WALK_SPEED_THRESHOLD)
+                {
+                    body.PlayAnimation("Walk");
+                }
+                else
+                {
+                    body.PlayAnimation("Idle");
+                }
+            }
         }
 
         private void HandleSocialMovement(
@@ -97,8 +149,10 @@ namespace ECS.Systems
         {
             var targetEntity = behavior.TargetEntity;
             var targetPos = targetEntity.GetComponent<Position3DComponent>();
+            var physical = entity.GetComponent<PhysicalComponent>();
+            var body = entity.GetComponent<BodyComponent>();
             
-            if (targetPos == null) return;
+            if (targetPos == null || physical == null) return;
 
             // Keep a comfortable distance for social interaction
             const float SOCIAL_DISTANCE = 2f;
@@ -122,7 +176,21 @@ namespace ECS.Systems
             else
             {
                 // Stay in place but look at target
-                position.UpdateRotation(Quaternion.LookRotation(direction));
+                Quaternion targetRotation = Quaternion.LookRotation(direction);
+                Quaternion newRotation = Quaternion.Lerp(
+                    position.Rotation,
+                    targetRotation,
+                    ROTATION_SPEED * deltaTime
+                );
+                position.UpdateRotation(newRotation);
+
+                // Update body animations
+                if (body != null)
+                {
+                    body.UpdatePosition(position.Position, newRotation);
+                    body.UpdateAnimationState(0f, false, physical.GetStaminaPercentage());
+                    body.PlayAnimation("Idle");
+                }
             }
         }
 
@@ -156,9 +224,9 @@ namespace ECS.Systems
             // This should be replaced with proper terrain-aware positioning
             float range = 50f;
             return new Vector3(
-                Random.Range(-range, range),
+                UnityEngine.Random.Range(-range, range),
                 0, // Assuming flat terrain for now
-                Random.Range(-range, range)
+                UnityEngine.Random.Range(-range, range)
             );
         }
 

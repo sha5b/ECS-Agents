@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.AI;
 using ECS.Core;
 using ECS.Components;
 using System.Collections.Generic;
@@ -16,12 +17,28 @@ namespace ECS.Systems
         private const float OBSTACLE_DETECTION_RADIUS = 2f;
         private const float PATH_NODE_SPACING = 5f;
         private const float ARRIVAL_DISTANCE = 1f;
+        private const float PATH_RECALCULATION_INTERVAL = 2f;
+        private const float PATH_CORNER_DISTANCE = 1f;
+
+        // Path smoothing
+        private const float PATH_SMOOTHING_WEIGHT = 0.5f;
+        private const int PATH_SMOOTHING_ITERATIONS = 3;
+
+        // NavMesh settings
+        private NavMeshQueryFilter defaultQueryFilter;
 
         public NavigationSystem(World world)
         {
             this.world = world;
             this.entities = world.GetEntities();
             this.nextUpdateTime = Time.time + UPDATE_INTERVAL;
+
+            // Initialize NavMesh query filter
+            defaultQueryFilter = new NavMeshQueryFilter
+            {
+                areaMask = NavMesh.AllAreas,
+                agentTypeID = 0 // Default agent type
+            };
         }
 
         public void Update(float deltaTime)
@@ -36,10 +53,12 @@ namespace ECS.Systems
 
                 if (position == null || behavior == null) continue;
 
-                // Only update navigation for entities with a target
-                if (behavior.TargetPosition.HasValue)
+                var navMesh = entity.GetComponent<NavMeshComponent>();
+                
+                // Only update navigation for entities with a target and NavMesh
+                if (behavior.TargetPosition.HasValue && navMesh != null)
                 {
-                    UpdateEntityNavigation(entity, position, behavior);
+                    UpdateEntityNavigation(entity, position, behavior, navMesh);
                 }
             }
         }
@@ -47,34 +66,106 @@ namespace ECS.Systems
         private void UpdateEntityNavigation(
             Entity entity,
             Position3DComponent position,
-            BehaviorComponent behavior)
+            BehaviorComponent behavior,
+            NavMeshComponent navMesh)
         {
             Vector3 currentPos = position.Position;
             Vector3 targetPos = behavior.TargetPosition.Value;
 
-            // Check if we've arrived at the target
-            if (Vector3.Distance(currentPos, targetPos) <= ARRIVAL_DISTANCE)
+            // Try to get cached path
+            NavMeshPath path;
+            if (!navMesh.TryGetCachedPath(targetPos, out path))
+            {
+                // Calculate new path
+                path = new NavMeshPath();
+                if (NavMesh.CalculatePath(currentPos, targetPos, defaultQueryFilter, path))
+                {
+                    navMesh.CachePath(targetPos, path);
+                }
+                else
+                {
+                    // If path calculation failed, try to find nearest valid position
+                    NavMeshHit hit;
+                    if (NavMesh.SamplePosition(targetPos, out hit, 10f, defaultQueryFilter.areaMask))
+                    {
+                        if (NavMesh.CalculatePath(currentPos, hit.position, defaultQueryFilter, path))
+                        {
+                            navMesh.CachePath(hit.position, path);
+                        }
+                    }
+                }
+            }
+
+            // Follow path if valid
+            if (path.status == NavMeshPathStatus.PathComplete || 
+                path.status == NavMeshPathStatus.PathPartial)
+            {
+                FollowPath(entity, position, behavior, path);
+            }
+            else
+            {
+                // Fallback to basic obstacle avoidance if path is invalid
+                FallbackNavigation(entity, position, behavior, currentPos, targetPos);
+            }
+        }
+
+        private void FollowPath(
+            Entity entity,
+            Position3DComponent position,
+            BehaviorComponent behavior,
+            NavMeshPath path)
+        {
+            if (path.corners.Length < 2) return;
+
+            // Find current corner target
+            int currentCorner = 1;
+            Vector3 currentPos = position.Position;
+            
+            while (currentCorner < path.corners.Length - 1)
+            {
+                if (Vector3.Distance(currentPos, path.corners[currentCorner]) > PATH_CORNER_DISTANCE)
+                    break;
+                currentCorner++;
+            }
+
+            // Move towards current corner
+            Vector3 cornerPos = path.corners[currentCorner];
+            Vector3 direction = (cornerPos - currentPos).normalized;
+
+            // Check if we've reached the final destination
+            if (currentCorner == path.corners.Length - 1 && 
+                Vector3.Distance(currentPos, cornerPos) <= ARRIVAL_DISTANCE)
             {
                 OnDestinationReached(entity, behavior);
                 return;
             }
 
-            // Check for obstacles
+            // Update rotation and movement
+            position.UpdateRotation(Quaternion.LookRotation(direction));
+
+            // Update behavior state based on path following
+            if (behavior.CurrentState != BehaviorState.Walking && 
+                behavior.CurrentState != BehaviorState.Running)
+            {
+                behavior.UpdateState(BehaviorState.Walking);
+            }
+        }
+
+        private void FallbackNavigation(
+            Entity entity,
+            Position3DComponent position,
+            BehaviorComponent behavior,
+            Vector3 currentPos,
+            Vector3 targetPos)
+        {
+            // Basic obstacle avoidance when NavMesh path fails
             if (DetectObstacles(currentPos, targetPos, out Vector3 avoidanceDirection))
             {
-                // Adjust path to avoid obstacles
-                Vector3 newDirection = CalculateAvoidancePath(
-                    currentPos,
-                    targetPos,
-                    avoidanceDirection
-                );
-                
-                // Update movement direction
+                Vector3 newDirection = CalculateAvoidancePath(currentPos, targetPos, avoidanceDirection);
                 position.UpdateRotation(Quaternion.LookRotation(newDirection));
             }
             else
             {
-                // Direct path to target
                 Vector3 direction = (targetPos - currentPos).normalized;
                 position.UpdateRotation(Quaternion.LookRotation(direction));
             }
